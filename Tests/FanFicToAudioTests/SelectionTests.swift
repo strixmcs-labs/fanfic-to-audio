@@ -39,7 +39,7 @@ import DownloadCore
         await model.shutdown()
     }
 
-    @Test func queueSelectionCannotChangeDuringIndividualExportOrDownload() async throws {
+    @Test func queueSelectionWaitsForExportsButNotDownloads() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let model = AppModel(storageRoot: root)
@@ -55,13 +55,12 @@ import DownloadCore
         model.selectedQueueJob = secondID
         #expect(model.selectedQueueJob == firstID)
         #expect(model.book?.source == first)
+        // Downloads run beside everything else, so they no longer hold the selection.
         model.isExporting = false; model.downloadInProgress = true
-        model.selectedQueueJob = secondID
-        #expect(model.selectedQueueJob == firstID)
-        model.downloadInProgress = false
         #expect(model.canSelectQueue)
         model.selectedQueueJob = secondID
         #expect(model.selectedQueueJob == secondID)
+        model.downloadInProgress = false
         await model.shutdown()
     }
 }
@@ -95,6 +94,23 @@ import DownloadCore
         await model.shutdown()
     }
 
+    @Test func booksAddedDuringAnExportKeepTheCurrentView() async {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = AppModel(storageRoot: root)
+        model.stage = 0; model.pane = .book
+        model.isExporting = true
+        model.addToAudiobookQueue([root.appendingPathComponent("downloaded.epub")])
+        #expect(model.audiobookQueue.jobs.map(\.source.lastPathComponent) == ["downloaded.epub"])
+        #expect(model.stage == 0 && model.pane == .book && model.selectedQueueJob == nil)
+        #expect(model.queueNotice?.contains("Added 1 EPUB") == true)
+        // A single file opened during a conversion is queued rather than interrupting it.
+        model.openFiles([root.appendingPathComponent("opened.epub")])
+        #expect(model.audiobookQueue.jobs.count == 2 && model.book == nil)
+        model.isExporting = false
+        await model.shutdown()
+    }
+
     @Test func downloadListIsRestoredAndInterruptedJobsWait() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -107,5 +123,16 @@ import DownloadCore
         #expect(restored.jobs.map(\.state) == [.queued, .done])
         #expect(restored.jobs[0].progress == nil && restored.hasQueued)
         #expect(restored.jobs.map(\.id) == first.jobs.map(\.id))
+    }
+}
+
+struct CreditTests {
+    /// The in-app FanFicFare credit names the bundled release, so it must match the build pin.
+    @Test func displayedFanFicFareVersionMatchesTheBuildPin() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let requirements = try String(contentsOf: root.appendingPathComponent("requirements-build.txt"), encoding: .utf8)
+        let pin = requirements.split(separator: "\n").first { $0.hasPrefix("FanFicFare") }?.split(separator: "==").last.map(String.init)
+        #expect(pin == LabsCredits.fanFicFareVersion)
+        #expect(LabsCredits.upstream.contains("Jim Miller (JimmXinu)") && LabsCredits.upstream.contains(LabsCredits.fanFicFareVersion))
     }
 }

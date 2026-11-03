@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 from fanficfare import adapters, writers
 from fanficfare.configurable import Configuration
 from fanficfare.epubutils import get_dcsource_chaptercount, get_update_data
-from fanficfare.geturls import get_urls_from_page
+from fanficfare.geturls import GetURLs
 
 from .session import Session
 from .network import attach_pacing
@@ -217,7 +217,8 @@ def execute(request, emit=lambda event: None, session=None):
     attach_pacing(config, request.get("pacing_db"), emit)
     phase = attach_page_progress(config, cache, emit)
     if operation == "extract":
-        urls = get_urls_from_page(url, config, normalize=True).get("urllist", [])
+        # FanFicFare 4.63 moved link discovery onto GetURLs, which shares this configuration and session.
+        urls = GetURLs(config).get_urls_from_page(url, normalize=True).get("urllist", [])
         session.remember_cookies(scope, config.get_cookiejar())
         return {"status": "done", "urls": list(dict.fromkeys(urls))}
     emit({"type": "activity", "percent": None, "message": "Reading story information…"})

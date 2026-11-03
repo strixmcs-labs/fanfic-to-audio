@@ -3,6 +3,11 @@ import SwiftUI
 import DownloadCore
 import UniformTypeIdentifiers
 
+struct FinishedBook: Equatable {
+    let id = UUID()
+    let url: URL
+}
+
 enum StoryState: String, Codable {
     case queued = "Queued", running = "Running", done = "Done", upToDate = "Up to date", failed = "Failed", cancelled = "Cancelled"
     var isFinished: Bool { self != .queued && self != .running }
@@ -40,6 +45,10 @@ final class DownloadModel: ObservableObject {
     @Published var isFinalizing = false
     @Published var readyURL: URL?
     @Published var readyURLs: [URL] = []
+    /// Each EPUB as it finishes, so a running audiobook queue can take it before the batch ends.
+    @Published var finishedBook: FinishedBook?
+    /// Books already handed to the audiobook queue during this batch; left out of `readyURLs`.
+    private var queuedDuringBatch: Set<URL> = []
     @Published var errorMessage: String?
     @Published var selectedOperation = "download"
     @Published var sourceKind = "auto"
@@ -91,7 +100,7 @@ final class DownloadModel: ObservableObject {
 
     func chooseINI() {
         let panel = NSOpenPanel()
-        panel.message = "Choose your personal.ini for site login, cookies, and download preferences."
+        panel.message = "Choose a personal.ini for site login, cookies, and download preferences."
         panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url { ini = url.path }
     }
@@ -126,7 +135,7 @@ final class DownloadModel: ObservableObject {
     func start() {
         guard !isRunning, hasQueued else { return }
         guard let helper else { errorMessage = "The FanFicFare download helper is missing. Build the complete app with Scripts/build-app.sh."; return }
-        isRunning = true; pauseRequested = false; readyURL = nil; readyURLs = []
+        isRunning = true; pauseRequested = false; readyURL = nil; readyURLs = []; queuedDuringBatch = []
         task = Task { [self] in
             var completedBooks: [URL] = []
             while !pauseRequested, let index = jobs.firstIndex(where: { $0.state == .queued }) {
@@ -142,11 +151,12 @@ final class DownloadModel: ObservableObject {
                     }
                     if let current = jobs.firstIndex(where: { $0.id == id }) {
                         jobs[current].state = result.status == "unchanged" ? .upToDate : .done
-                        jobs[current].message = result.status == "unchanged" ? "No new chapters. Your EPUB is unchanged." : "Completed."
+                        jobs[current].message = result.status == "unchanged" ? "No new chapters. The EPUB is unchanged." : "Completed."
                         jobs[current].progress = 100
                         if let path = result.path {
                             let url = URL(fileURLWithPath: path)
                             jobs[current].path = url; completedBooks.append(url)
+                            finishedBook = FinishedBook(url: url)
                         }
                         jobs[current].backup = result.backup
                         if let metadata = result.metadata { apply(metadata, at: current) }
@@ -168,7 +178,7 @@ final class DownloadModel: ObservableObject {
             }
             isRunning = false; task = nil
             readyURL = completedBooks.last
-            readyURLs = completedBooks
+            readyURLs = completedBooks.filter { !queuedDuringBatch.contains($0) }
         }
     }
 
@@ -186,6 +196,9 @@ final class DownloadModel: ObservableObject {
         let count = metadata["numWords"] ?? ""
         jobs[index].wordCount = count.isEmpty ? "" : "\(count) words (\(metadata["wordCountSource"] ?? "site"))"
     }
+
+    /// Records a book the audiobook queue already took, so the end of the batch doesn't add it twice.
+    func markQueued(_ url: URL) { queuedDuringBatch.insert(url) }
 
     func cancel() {
         pauseRequested = true

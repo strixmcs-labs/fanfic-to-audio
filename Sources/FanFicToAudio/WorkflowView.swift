@@ -7,7 +7,7 @@ struct WorkflowView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 16) {
-                Label("FanFic to Audio", systemImage: "book.fill").font(.headline)
+                Label("FanFic to Audio", systemImage: "book").font(.headline)
                 Spacer()
                 Picker("Workflow", selection: $audio.stage) {
                     Text("1 · Download by Link").tag(0)
@@ -17,21 +17,42 @@ struct WorkflowView: View {
                 Button("Open EPUB…") { audio.chooseEPUB() }.disabled(audio.busy)
             }.padding(.horizontal, 24).padding(.vertical, 14)
             Divider()
+            if let notice = audio.queueNotice { queueNoticeBar(notice) }
             if audio.stage == 0 {
-                DownloadView(model: download) { url in open(url) }.disabled(audio.isExporting || audio.isLoading || audio.audiobookQueue.isRunning)
+                // Downloads stay available while audio converts; finished books join the queue.
+                DownloadView(model: download, canOpenBooks: !audio.busy) { url in open(url) }
             } else {
                 ContentView(model: audio)
             }
         }
         .background(AppTheme.background).tint(AppTheme.oxblood)
+        // Every button follows the Labs component rules unless a view picks another variant.
+        .buttonStyle(LabsButtonStyle())
         .onChange(of: download.isRunning) { _, value in
             audio.downloadInProgress = value
             if value { audio.stopPreview() }
+        }
+        .onChange(of: download.finishedBook) { _, book in
+            // A running queue takes each book as it downloads, so it converts it before stopping.
+            guard let book, audio.audiobookQueue.isRunning else { return }
+            audio.addToAudiobookQueue([book.url]); download.markQueued(book.url)
         }
         .onChange(of: download.readyURLs) { _, urls in
             audio.downloadInProgress = download.isRunning
             if !urls.isEmpty { audio.addToAudiobookQueue(urls) }
         }
+    }
+
+    private func queueNoticeBar(_ notice: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "text.badge.plus").foregroundStyle(AppTheme.oxblood).accessibilityHidden(true)
+            Text(notice).font(.callout)
+            Spacer()
+            Button("Show Queue") { audio.stage = 1; audio.pane = .queue; audio.queueNotice = nil }
+            Button("Dismiss") { audio.queueNotice = nil }
+        }
+        .padding(.horizontal, 24).padding(.vertical, 8)
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     private func open(_ url: URL) {

@@ -27,7 +27,7 @@ struct PronunciationsView: View {
             Text("Whole words are replaced in every book, ignoring capitalization, for all voices. Preview a section that uses the word to hear it.")
                 .font(.caption).foregroundStyle(.secondary)
         }
-        .padding(20).background(AppTheme.card, in: RoundedRectangle(cornerRadius: 12))
+        .labsCard()
         .disabled(model.busy)
     }
 }

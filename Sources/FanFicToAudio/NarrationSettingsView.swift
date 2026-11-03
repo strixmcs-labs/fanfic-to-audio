@@ -62,7 +62,7 @@ struct NarrationSettingsView: View {
             }.toggleStyle(.checkbox)
             Text("Skipping removes paragraphs that start like “A/N:”, “Author’s Note”, “Disclaimer”, or “Notes:”, including a whole note block before the first scene break or at the end of a section. Titles are added only to sections that don’t already open with one. Check the text preview for the result.")
                 .font(.caption).foregroundStyle(.secondary)
-        }.padding(20).background(AppTheme.card, in: RoundedRectangle(cornerRadius: 12))
+        }.labsCard()
             .disabled(model.busy)
             .onChange(of: model.voice) { _, _ in model.stopPreview() }
             .onChange(of: model.rate) { _, _ in model.stopPreview() }
@@ -73,7 +73,7 @@ struct NarrationSettingsView: View {
     }
     private var previewButton: some View {
         Button(action: model.preview) {
-            Label(model.isPreviewing ? "Stop" : "Preview", systemImage: model.isPreviewing ? "stop.fill" : "play.fill")
+            Label(model.isPreviewing ? "Stop" : "Preview", systemImage: model.isPreviewing ? "stop" : "play")
         }.disabled(!model.narrationReady)
     }
     @ViewBuilder private var apiControls: some View {
@@ -122,7 +122,7 @@ struct NarrationSettingsView: View {
                 Button(model.loadingAPIVoices ? "Loading…" : "Load Voices", action: model.loadAPIVoices).disabled(!model.hasAPIKey)
             }
             HStack {
-                TextField("Voice ID from your ElevenLabs library", text: $model.elevenVoice).textFieldStyle(.roundedBorder)
+                TextField("Voice ID from the ElevenLabs library", text: $model.elevenVoice).textFieldStyle(.roundedBorder)
                 if !model.apiVoices.isEmpty {
                     Picker("Library voice", selection: $model.elevenVoice) {
                         Text("Enter voice ID").tag(model.apiVoices.contains(where: { $0.id == model.elevenVoice }) ? "" : model.elevenVoice)

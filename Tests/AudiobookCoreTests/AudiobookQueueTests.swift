@@ -160,8 +160,6 @@ struct AudiobookQueueTests {
         queue.move(first, by: 1)
         #expect(queue.jobs.map(\.source) == [sources[1], sources[0], sources[2]])
         try queue.start(settings: settings(), folder: root)
-        queue.move(first, by: -1)
-        #expect(queue.jobs.map(\.source) == [sources[1], sources[0], sources[2]])
         await queue.waitUntilFinished()
         #expect(await recorder.sources == [sources[1], sources[0], sources[2]])
         #expect(queue.activeBook?.id == queue.jobs.last?.id)
@@ -216,6 +214,56 @@ struct AudiobookQueueTests {
         #expect(queue.jobs[0].narration != nil)
     }
 
+    @Test func booksAddedOrMovedDuringARunAreConvertedInThatRun() async throws {
+        let root = try fixtureDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let sources = try fixtures(root, names: ["one.epub", "two.epub", "three.epub", "four.epub"])
+        let gate = ExportGate()
+        let queue = AudiobookQueue(reader: Self.readFixture, exporter: { book, _, destination, runner, _ in
+            try await gate.export(book.source, destination: destination, runner: runner)
+        })
+        queue.add([sources[0], sources[1]])
+        try queue.start(settings: settings(), folder: root)
+        try await gate.waitForActive(sources[0])
+        let running = queue.jobs[0].id, waiting = queue.jobs[1].id
+        // The converting book is locked; everything else stays editable.
+        #expect(queue.isLocked(running) && !queue.isLocked(waiting))
+        queue.remove(running); queue.move(running, by: 1)
+        #expect(queue.jobs.first?.id == running)
+        #expect(queue.add([sources[2], sources[3]]) == 2)
+        queue.move(queue.jobs[3].id, before: waiting)
+        queue.remove(queue.jobs[3].id)
+        #expect(queue.jobs.map(\.source) == [sources[0], sources[3], sources[1]])
+        await gate.release()
+        await queue.waitUntilFinished()
+        #expect(await gate.order == [sources[0], sources[3], sources[1]])
+        #expect(queue.jobs.allSatisfy { $0.state == .done })
+        #expect(!queue.isRunning)
+    }
+
+    @Test func resultsReachTheRightBookWhenTheListChangesMidConversion() async throws {
+        let root = try fixtureDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let sources = try fixtures(root, names: ["done.epub", "next.epub", "after.epub"])
+        let gate = ExportGate()
+        let queue = AudiobookQueue(reader: Self.readFixture, exporter: { book, _, destination, runner, _ in
+            try await gate.export(book.source, destination: destination, runner: runner)
+        })
+        queue.add([sources[0]])
+        try queue.start(settings: settings(), folder: root)
+        await gate.release()
+        await queue.waitUntilFinished()
+        queue.add([sources[1], sources[2]])
+        await gate.hold()
+        try queue.start(settings: settings(), folder: root)
+        try await gate.waitForActive(sources[1])
+        // Removing a finished row ahead shifts every position while "next" converts.
+        queue.clearFinished()
+        await gate.release()
+        await queue.waitUntilFinished()
+        #expect(queue.jobs.map(\.source) == [sources[1], sources[2]])
+        #expect(queue.jobs.map(\.state) == [.done, .done])
+        #expect(queue.jobs.map { $0.output?.deletingPathExtension().lastPathComponent } == ["Shared Title (2)", "Shared Title (3)"])
+    }
+
     private func settings(voice: String = "Test Voice", mode: ExportMode = .single) -> BatchNarrationSettings {
         BatchNarrationSettings(voice: voice, wordsPerMinute: 200, bitrate: 96, mode: mode, ffmpeg: URL(fileURLWithPath: "/usr/bin/true"))
     }
@@ -267,6 +315,26 @@ private actor QueueRecorder {
             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
             try Data("audio".utf8).write(to: destination.appendingPathComponent("001.mp3"))
         } else { try Data("audio".utf8).write(to: destination, options: .withoutOverwriting) }
+        return destination
+    }
+}
+
+/// Holds the first export until released, so tests can change the queue mid-conversion.
+private actor ExportGate {
+    private(set) var order: [URL] = []
+    private var active: URL?
+    private var held = true
+    func hold() { held = true }
+    func release() { held = false }
+    func waitForActive(_ source: URL) async throws {
+        for _ in 0..<300 where active != source { try await Task.sleep(for: .milliseconds(10)) }
+        guard active == source else { throw AudiobookError.conversion("Export did not start") }
+    }
+    func export(_ source: URL, destination: URL, runner: ProcessRunner) async throws -> URL {
+        order.append(source); active = source
+        defer { active = nil }
+        while held { try await Task.sleep(for: .milliseconds(10)); try runner.checkCancellation() }
+        try Data("audio".utf8).write(to: destination, options: .withoutOverwriting)
         return destination
     }
 }

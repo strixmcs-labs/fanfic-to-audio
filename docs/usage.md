@@ -19,7 +19,17 @@ You can also open an existing EPUB directly into the audiobook view. Dropped EPU
 3. Click **Create Queued Audiobooks…** and select an output folder. With a folder already selected, click **Start Queue**.
 4. Each EPUB converts in queue order. Its row shows progress, success, or the reason for failure. Select a completed row and click **Show Audiobook in Finder**.
 
-Select a queue row to load its EPUB and chapter preview. The open book follows the active job during conversion. Use **Move Up**, **Move Down**, or drag rows to change the order while the queue is idle. Selection is disabled during individual exports and downloads, so the highlighted row stays aligned with the open book.
+Select a queue row to load its EPUB and chapter preview. The open book follows the active job during conversion. Use **Move Up**, **Move Down**, or drag rows to change the order. Selection is disabled during an individual export, so the highlighted row stays aligned with the open book.
+
+### Adding books during a conversion
+
+Conversion no longer halts the rest of the app. **Download by Link** stays available while a single export or the queue runs, and downloads no longer lock the audiobook side. Every finished EPUB joins the queue:
+
+- While the queue runs, each EPUB joins as soon as it finishes downloading, and the queue converts it before stopping. The queue keeps taking the next waiting book in the current order until none remain.
+- During a single-book export, finished EPUBs wait in the queue; start the queue when the export ends.
+- A notice confirms each addition instead of switching tabs; **Show Queue** opens the queue.
+- During a run, waiting books can be added, moved, retried, or removed, and their saved settings changed. Only the book being converted is locked. **Add EPUBs…**, dropped files, and EPUBs opened from Finder are queued the same way; a single EPUB opened from Finder during a conversion is queued rather than opened for review.
+- Books added after a run ends wait for **Start Queue**.
 
 Each book creates a separate MP3, M4B, or chapter folder named from its title. Duplicate titles receive numbered suffixes; existing outputs are preserved. A failed EPUB does not stop later books.
 

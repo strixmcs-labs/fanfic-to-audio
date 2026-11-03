@@ -39,7 +39,7 @@ struct ContentView: View {
         .onDrop(of: [UTType.fileURL], isTargeted: $model.isDropTarget, perform: acceptDrop)
         .overlay {
             if model.isDropTarget {
-                RoundedRectangle(cornerRadius: 16).stroke(accent, style: StrokeStyle(lineWidth: 3, dash: [8]))
+                RoundedRectangle(cornerRadius: AppTheme.radiusMedium).stroke(AppTheme.structure, style: StrokeStyle(lineWidth: 2, dash: [8]))
                     .padding(8).allowsHitTesting(false)
             }
         }
@@ -59,9 +59,9 @@ struct ContentView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 20) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("YOUR STORY, OUT LOUD").font(.system(size: 10, weight: .bold, design: .rounded)).tracking(2).foregroundStyle(accent)
-                Text("Create your audiobooks").font(.system(size: 24, weight: .semibold, design: .serif))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Create audiobooks").font(.system(size: 22, weight: .semibold))
+                Text("Voice, books, and the queue").font(.callout).foregroundStyle(.secondary)
             }
             Spacer()
             Picker("Section", selection: $model.pane) {
@@ -83,7 +83,7 @@ struct ContentView: View {
             Spacer()
             Button("Change…") { model.pane = .narration }
         }
-        .padding(12).background(accent.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+        .labsCard(padding: AppTheme.space3, accentLeft: true)
     }
 
     @ViewBuilder private var bookPane: some View {
@@ -99,10 +99,10 @@ struct ContentView: View {
         } else {
             VStack(spacing: 14) {
                 Image(systemName: "book.and.wrench").font(.system(size: 36)).foregroundStyle(accent).accessibilityHidden(true)
-                Text("Open a single EPUB to review its text, choose and arrange sections, and export it.")
+                Text("Open a single EPUB to review its text, choose and arrange sections, and export it on its own.")
                     .foregroundStyle(.secondary).multilineTextAlignment(.center)
                 HStack {
-                    Button("Open EPUB…", action: model.chooseEPUB).disabled(model.busy)
+                    Button("Open EPUB…", action: model.chooseEPUB).buttonStyle(LabsButtonStyle(variant: .primary)).disabled(model.busy)
                     Button("Go to Queue") { model.pane = .queue }
                 }
             }.frame(maxWidth: .infinity).padding(.vertical, 60)
@@ -156,11 +156,11 @@ struct ContentView: View {
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "text.book.closed").font(.system(size: 35)).foregroundStyle(.tertiary)
-                    Text("Your book’s sections\nwill appear here.").font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    Text("The open book’s sections\nappear here.").font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             Divider()
-            Label(model.provider == .system ? "Narration on your Mac" : "AI narration via \(model.provider.rawValue)", systemImage: model.provider == .system ? "desktopcomputer" : "waveform").font(.caption).foregroundStyle(.secondary).padding(20)
+            Label(model.provider == .system ? "Narration on this Mac" : "AI narration via \(model.provider.rawValue)", systemImage: model.provider == .system ? "desktopcomputer" : "waveform").font(.caption).foregroundStyle(.secondary).padding(20)
         }
         .background(AppTheme.background)
     }
@@ -200,7 +200,7 @@ struct ContentView: View {
                 Text("128 kbps").tag(128)
                 Text("192 kbps").tag(192)
             }.frame(width: 160)
-        }.padding(20).background(AppTheme.card, in: RoundedRectangle(cornerRadius: 12)).disabled(model.busy)
+        }.labsCard().disabled(model.busy)
     }
 
     private func bookSummary(_ book: EPUBBook) -> some View {
@@ -211,12 +211,12 @@ struct ContentView: View {
                 } else {
                     ZStack {
                         AppTheme.bookGradient
-                        Image(systemName: "book.closed.fill").font(.system(size: 32)).foregroundStyle(.white.opacity(0.85))
+                        Image(systemName: "book.closed").font(.system(size: 30, weight: .light)).foregroundStyle(.white.opacity(0.9))
                     }
                 }
             }
-            .frame(width: 68, height: 88).clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.2))).accessibilityHidden(true)
+            .frame(width: 68, height: 88).clipShape(RoundedRectangle(cornerRadius: AppTheme.radius))
+            .overlay(RoundedRectangle(cornerRadius: AppTheme.radius).stroke(AppTheme.line)).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 6) {
                 Text(book.title).font(.title2.weight(.semibold)).textSelection(.enabled)
                 if !book.author.isEmpty { Text(book.author).foregroundStyle(.secondary).textSelection(.enabled) }
@@ -240,11 +240,11 @@ struct ContentView: View {
                 }
                 ScrollView {
                     Text(text.isEmpty ? "This section is only author’s notes, so it will be skipped." : String(text.prefix(8000)))
-                        .font(.system(size: 14, design: .serif)).lineSpacing(5)
+                        .font(.system(size: 14)).lineSpacing(6)
                         .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                 }.frame(height: 125)
                 if text != chapter.text {
-                    Text("Showing the text as it will be narrated with your author’s note and title choices.").font(.caption2).foregroundStyle(.secondary)
+                    Text("Shown as it will be narrated, with the author’s-note and title choices applied.").font(.caption2).foregroundStyle(.secondary)
                 }
                 if text.count > 8000 { Text("Showing the first part of this section. Export includes its full text.").font(.caption2).foregroundStyle(.secondary) }
             }
@@ -272,21 +272,21 @@ struct ContentView: View {
             } else {
                 HStack {
                     if model.exportedURL != nil {
-                        Label("Audiobook ready", systemImage: "checkmark.circle.fill").foregroundStyle(accent)
+                        Label { Text("Audiobook ready") } icon: { Image(systemName: "checkmark.circle").foregroundStyle(accent) }
                         Button("Show in Finder", action: model.revealExport)
                     } else { Text(model.status).font(.caption).foregroundStyle(.secondary) }
                     Spacer()
                     Button("Create Audiobook…", action: model.chooseDestinationAndExport)
-                        .buttonStyle(.borderedProminent).controlSize(.large).disabled(!model.canExport)
+                        .buttonStyle(LabsButtonStyle(variant: .primary, large: true)).disabled(!model.canExport)
                 }
             }
-            Text("Estimated length is the listening time. Conversion time depends on the voice and book. Your Mac stays awake while exporting.")
+            Text("Estimated length is listening time. Conversion time depends on the voice and the book. The Mac stays awake during export.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
 
     private func acceptDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard !model.busy, !providers.isEmpty else { return false }
+        guard model.canAddToQueue, !providers.isEmpty else { return false }
         Task { @MainActor in
             var urls: [URL] = []
             for provider in providers {

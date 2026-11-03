@@ -16,9 +16,9 @@ struct AudiobookQueueView: View {
                     Button("Add Open Book", action: model.queueCurrentBook)
                         .disabled(model.busy || model.selectedChapters.isEmpty)
                 }
-                Button("Add EPUBs…", action: model.chooseQueuedEPUBs).disabled(model.busy)
+                Button("Add EPUBs…", action: model.chooseQueuedEPUBs).disabled(!model.canAddToQueue)
             }
-            Text("The queue is saved automatically. New books use the settings above; you can save separate settings and sections for each selected book.")
+            Text("The queue saves automatically. New books use the Voice & Text settings; a selected book can keep its own settings and sections. Links downloaded during a conversion join the queue and convert next.")
                 .font(.caption).foregroundStyle(.secondary)
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -34,7 +34,7 @@ struct AudiobookQueueView: View {
             }
             if queue.jobs.isEmpty {
                 HStack(spacing: 14) {
-                    Image(systemName: "books.vertical").font(.system(size: 30)).foregroundStyle(accent)
+                    Image(systemName: "books.vertical").font(.system(size: 28, weight: .light)).foregroundStyle(accent).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Make audiobooks in bulk").font(.callout.weight(.medium))
                         Text("Each book gets its own MP3, M4B, or chapter folder. Existing audiobooks are preserved.")
@@ -62,23 +62,22 @@ struct AudiobookQueueView: View {
                                             Text(preset.displaySummary)
                                                 .font(.caption2).foregroundStyle(.secondary)
                                         }
-                                        Text(job.message).font(.caption).foregroundStyle(job.state == .failed ? .red : .secondary).lineLimit(3)
+                                        // No status colors: a failure reads in full-strength text beside an accent badge.
+                                        Text(job.message).font(.caption).foregroundStyle(job.state == .failed ? AppTheme.text : Color.secondary).lineLimit(3)
                                         if job.state == .running { ProgressView(value: job.progress) }
                                     }
                                     Spacer(minLength: 8)
-                                    Text(job.state.rawValue).font(.caption.weight(.medium))
-                                        .padding(.horizontal, 9).padding(.vertical, 4)
-                                        .background(accent.opacity(0.1), in: Capsule())
+                                    LabsBadge(label: job.state.rawValue, tone: [.running, .failed].contains(job.state) ? .accent : .neutral)
                                 }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(model.selectedQueueJob == job.id ? accent.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
-                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.15)))
-                                }.buttonStyle(.plain).disabled(!model.canSelectQueue)
+                                    .labsRow(selected: model.selectedQueueJob == job.id)
+                                    .contentShape(RoundedRectangle(cornerRadius: AppTheme.radiusMedium))
+                                }.buttonStyle(.plain).disabled(!(model.canSelectQueue || queue.isRunning))
                                     .onDrag { NSItemProvider(object: job.id.uuidString as NSString) }
                                     .onDrop(of: [UTType.text], isTargeted: nil) { providers in
-                                        guard !model.busy, let provider = providers.first else { return false }
+                                        guard model.canAddToQueue, let provider = providers.first else { return false }
                                         _ = provider.loadObject(ofClass: NSString.self) { object, _ in
                                             guard let text = object as? String, let id = UUID(uuidString: text) else { return }
-                                            Task { @MainActor in if !model.busy { queue.move(id, before: job.id) } }
+                                            Task { @MainActor in if model.canAddToQueue { queue.move(id, before: job.id) } }
                                         }
                                         return true
                                     }
@@ -90,26 +89,26 @@ struct AudiobookQueueView: View {
                 if let job = queue.jobs.first(where: { $0.id == model.selectedQueueJob }) {
                     HStack {
                         Button { queue.move(job.id, by: -1) } label: { Label("Move Up", systemImage: "arrow.up") }
-                            .disabled(model.busy || !queue.canMove(job.id, by: -1))
+                            .disabled(!model.canAddToQueue || !queue.canMove(job.id, by: -1))
                         Button { queue.move(job.id, by: 1) } label: { Label("Move Down", systemImage: "arrow.down") }
-                            .disabled(model.busy || !queue.canMove(job.id, by: 1))
-                        if job.output != nil { Button("Show Audiobook in Finder", action: model.revealQueuedAudiobook) }
+                            .disabled(!model.canAddToQueue || !queue.canMove(job.id, by: 1))
+                        if job.state == .done, job.output != nil { Button("Show Audiobook in Finder", action: model.revealQueuedAudiobook) }
                         if [.failed, .cancelled].contains(job.state) {
-                            Button("Retry Selected") { queue.retry(job.id) }.disabled(model.busy)
+                            Button("Retry Selected") { queue.retry(job.id) }.disabled(!model.canAddToQueue)
                         }
                         Spacer()
                         Button("Remove Selected") {
                             queue.remove(job.id); model.seriesJobIDs.remove(job.id)
                             model.selectedQueueJob = queue.jobs.first?.id
-                        }.disabled(model.busy)
-                        Button("Clear Completed", action: model.clearCompletedAudiobooks).disabled(model.busy)
+                        }.disabled(!model.canAddToQueue || queue.isLocked(job.id))
+                        Button("Clear Completed", action: model.clearCompletedAudiobooks).disabled(!model.canAddToQueue)
                     }
                     if job.state != .done {
                         savedSettings(job)
                         HStack {
                             Button("Save Current Settings & Sections for Selected Book", action: model.saveSelectedJobSettings)
                                 .disabled(model.busy || !model.isOpen(job) || model.selectedChapters.isEmpty)
-                            Button("Discard Saved Passages") { queue.discardCheckpoint(job.id) }.disabled(model.busy)
+                            Button("Discard Saved Passages") { queue.discardCheckpoint(job.id) }.disabled(queue.isLocked(job.id))
                         }
                     }
                 }
@@ -132,7 +131,9 @@ struct AudiobookQueueView: View {
                 }.disabled(model.busy)
             }
             if queue.isRunning { ProgressView(value: queue.batchProgress) }
-            if let error = queue.persistenceError { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
+            if let error = queue.persistenceError {
+                Label { Text(error).font(.caption).textSelection(.enabled) } icon: { Image(systemName: "exclamationmark.triangle").foregroundStyle(accent) }
+            }
             HStack {
                 Text(queue.summary).font(.caption).foregroundStyle(.secondary)
                 Spacer()
@@ -140,7 +141,7 @@ struct AudiobookQueueView: View {
                     Button("Cancel & Pause Queue", action: queue.cancelAndPause)
                 } else {
                     Button(model.audiobookFolder == nil ? "Create Queued Audiobooks…" : "Start Queue", action: model.startAudiobookQueue)
-                        .buttonStyle(.borderedProminent).controlSize(.large).disabled(!model.canStartQueue)
+                        .buttonStyle(LabsButtonStyle(variant: .primary, large: true)).disabled(!model.canStartQueue)
                 }
             }
             if model.ffmpeg == nil {
@@ -150,9 +151,9 @@ struct AudiobookQueueView: View {
                     Button("Choose FFmpeg…", action: model.chooseFFmpeg).disabled(model.busy)
                 }
             }
-            Text("Select a row to open its EPUB, or drag rows into reading order. During conversion, the open book follows the active job. Retry resumes completed passages when the content and settings match. Removing a book discards its saved passages.")
+            Text("Select a row to open its EPUB, or drag rows into order. During conversion the open book follows the active job, and waiting books can still be added, moved, retried, or removed. Retry resumes completed passages when the content and settings match. Removing a book discards its saved passages.")
                 .font(.caption2).foregroundStyle(.secondary)
-        }.padding(20).background(AppTheme.card, in: RoundedRectangle(cornerRadius: 12))
+        }.labsCard()
     }
 
     /// A book with saved settings ignores the Voice & Text controls; say so plainly.
@@ -164,16 +165,16 @@ struct AudiobookQueueView: View {
                     Label("Saved for this book: \(preset.displaySummary)", systemImage: "slider.horizontal.3").font(.caption)
                     Spacer()
                     Button("Use in Controls") { model.useInControls(preset) }.disabled(model.busy || matches)
-                    Button("Clear Saved Settings") { queue.clearNarration(job.id) }.disabled(model.busy)
+                    Button("Clear Saved Settings") { queue.clearNarration(job.id) }.disabled(queue.isLocked(job.id))
                 }
                 if !matches {
-                    Text("This book will be narrated with its saved settings, not the current Voice & Text settings.")
-                        .font(.caption2).foregroundStyle(accent)
+                    Text("This book is narrated with its saved settings, not the current Voice & Text settings.")
+                        .font(.caption2.weight(.medium))
                 }
             }
-            .padding(10).background(accent.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            .labsCard(padding: 10, accentLeft: !matches)
         } else {
-            Text("This book will use the Voice & Text settings in effect when the queue starts.").font(.caption2).foregroundStyle(.secondary)
+            Text("This book uses the Voice & Text settings in effect when the queue starts.").font(.caption2).foregroundStyle(.secondary)
         }
     }
 }

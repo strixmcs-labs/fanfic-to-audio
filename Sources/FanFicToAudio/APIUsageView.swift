@@ -27,10 +27,10 @@ struct APIUsageView: View {
             if !model.queueEstimate.isEmpty { Text(model.queueEstimate).font(.caption).textSelection(.enabled) }
             Text("Since \(model.usageSummary.since.formatted(date: .abbreviated, time: .shortened)): \(model.usageSummary.requests) speech attempts · \(model.usageSummary.characters.formatted()) characters · \(String(format: "estimated $%.3f", model.usageSummary.estimatedCost))" + (model.usageSummary.unpricedRequests > 0 ? " · \(model.usageSummary.unpricedRequests) unpriced attempts" : ""))
                 .font(.caption).foregroundStyle(.secondary)
-            Text("Enter the rate for your provider, model, and plan; it is saved per model. Include input and audio charges in your all-in estimate. Token and listening-time estimates are approximate. Limits count previews, retries, and failed attempts since Reset Usage; they stop before sending the next passage. Provider invoices may differ, and resumed passages are included in the full-book estimate.")
+            Text("Enter the rate for the provider, model, and plan; it is saved per model. Include input and audio charges in the all-in estimate. Token and listening-time estimates are approximate. Limits count previews, retries, and failed attempts since Reset Usage; they stop before sending the next passage. Provider invoices may differ, and resumed passages are included in the full-book estimate.")
                 .font(.caption2).foregroundStyle(.secondary)
           }.padding(.top, 10)
-        }.padding(20).background(AppTheme.card, in: RoundedRectangle(cornerRadius: 12))
+        }.labsCard()
             .task {
                 while !Task.isCancelled {
                     model.refreshUsage()

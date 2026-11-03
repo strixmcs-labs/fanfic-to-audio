@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.0 — Unreleased
+
+- Keep **Download by Link** and the audiobook queue available during conversion. Finished downloads always join the queue; a running queue takes each EPUB as it finishes downloading and keeps converting until no waiting books remain. Waiting books can be added, moved, retried, or removed during a run; only the book being converted is locked. A notice confirms additions instead of switching tabs, and downloads no longer lock the audiobook side.
+- Find each queued job by ID after every step of a conversion, so changes to the list mid-run always reach the right book.
+- Adopt the StrixMCS Labs design system for native Labs apps: system appearance and typeface, white field with Labs oxblood in light mode, the black field with Labs wine in dark mode, 3–6px radii, hairline depth with no shadows, oxblood hover edges, a gold keyboard focus ring on app buttons, and line icons.
+- Replace status colors with neutral and accent badges marked by a dot; failed jobs read in full-strength text.
+- Use normal case throughout and rewrite interface text in third person or imperative.
+- Add an About panel and Settings credit with the Labs byline.
+- Update FanFicFare to 4.63.0 and use its `GetURLs` interface for finding story links on a page. Other build dependencies are unchanged. Story downloading is powered by [FanFicFare](https://github.com/JimmXinu/FanFicFare), by Jim Miller (JimmXinu) and the FanFicFare contributors; thanks to them for the engine and site adapters.
+- Credit FanFicFare and its authors in Download by Link, the About panel, Settings, and a Help menu link, with the bundled version and its Apache 2.0 license.
+- Saved queues, presets, completed passages, and downloads from 1.5.1 remain compatible.
+
 ## 1.5.1 — 2026-10-29
 
 - Add **OpenRouter** as an AI speech provider, using your own OpenRouter API key. **Load Models** lists OpenRouter's speech models and their voices from its public catalog without sending your key, and fills in the listed per-character rate when you haven't entered one. The default is Kokoro 82M with the `af_heart` voice.
