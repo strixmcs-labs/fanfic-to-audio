@@ -21,7 +21,7 @@ enum APIKeyStore {
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         guard status == errSecSuccess, let data = result as? Data, let key = String(data: data, encoding: .utf8) else {
-            throw AudiobookError.conversion("Save your \(provider.rawValue) API key in the narration settings first.")
+            throw AudiobookError.conversion("Save a \(provider.rawValue) API key in Voice & Text first.")
         }
         return key
     }

@@ -77,6 +77,8 @@ final class AppModel: ObservableObject {
     }
     @Published var ffmpeg = SpeechTools.findFFmpeg()
     @Published var downloadInProgress = false
+    /// Confirms books added while a conversion runs, without switching panes mid-conversion.
+    @Published var queueNotice: String?
     @Published var isLoading = false
     @Published var isExporting = false
     @Published var isPreviewing = false
@@ -110,7 +112,7 @@ final class AppModel: ObservableObject {
                 book = nil; coverImage = nil; selectedChapters = []; chapterOrder = []; chapterTitles = [:]; focusedChapter = nil; exportedURL = nil
                 status = "Choose an EPUB to begin."; return
             }
-            guard let job = audiobookQueue.jobs.first(where: { $0.id == selectedQueueJob }), !isExporting, !downloadInProgress else { return }
+            guard let job = audiobookQueue.jobs.first(where: { $0.id == selectedQueueJob }), !isExporting else { return }
             if !audiobookQueue.isRunning { loadBook(job.source, job: job, showAudiobook: false) }
         }
     }
@@ -156,8 +158,13 @@ final class AppModel: ObservableObject {
         }
     }
 
-    var busy: Bool { isEstimating || isLoading || isCombining || loadingAPIVoices || isExporting || downloadInProgress || audiobookQueue.isRunning }
-    var canSelectQueue: Bool { !isCombining && !isEstimating && !loadingAPIVoices && !isExporting && !downloadInProgress && !audiobookQueue.isRunning }
+    // Downloads run beside conversion, so a download in progress blocks neither.
+    var busy: Bool { isEstimating || isLoading || isCombining || loadingAPIVoices || isExporting || audiobookQueue.isRunning }
+    var canSelectQueue: Bool { !isCombining && !isEstimating && !loadingAPIVoices && !isExporting && !audiobookQueue.isRunning }
+    /// A single-book export or the queue is producing audio.
+    var isConverting: Bool { isExporting || audiobookQueue.isRunning }
+    /// Books can join the queue at any time except while a series is being combined.
+    var canAddToQueue: Bool { !isCombining }
     var selectedWordCount: Int {
         selectedNarratedChapters.reduce(0) { $0 + $1.wordCount }
     }
@@ -211,29 +218,40 @@ final class AppModel: ObservableObject {
     var canStartQueue: Bool { audiobookQueue.queuedCount > 0 && narrationReady && ffmpeg != nil && !busy }
 
     func chooseQueuedEPUBs() {
-        guard !busy else { return }
+        guard canAddToQueue else { return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "epub") ?? .data]
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
         panel.prompt = "Add EPUBs"
-        panel.message = "Select all the EPUBs you want to turn into audiobooks."
+        panel.message = "Select the EPUBs to turn into audiobooks."
         guard panel.runModal() == .OK else { return }
         addToAudiobookQueue(panel.urls)
     }
 
     func addToAudiobookQueue(_ urls: [URL]) {
-        guard !busy else { return }
-        if audiobookQueue.add(urls) > 0 { selectedQueueJob = audiobookQueue.jobs.last?.id }
-        stage = 1; pane = .queue
+        guard canAddToQueue else {
+            errorMessage = "Wait for the series to finish combining, then add the EPUBs again."; return
+        }
+        let added = audiobookQueue.add(urls)
+        guard isConverting else {
+            if added > 0 { selectedQueueJob = audiobookQueue.jobs.last?.id }
+            stage = 1; pane = .queue; return
+        }
+        // Keep the current view and the book being converted; confirm the addition instead.
+        guard added > 0 else { return }
+        let books = added == 1 ? "1 EPUB" : "\(added) EPUBs"
+        queueNotice = audiobookQueue.isRunning
+            ? "Added \(books) to the audiobook queue. The running queue converts \(added == 1 ? "it" : "them") next."
+            : "Added \(books) to the audiobook queue. Start the queue when the current export finishes."
     }
 
     /// Opens EPUBs handed to the app by Finder or another app: one opens for review, several join the queue.
     func openFiles(_ urls: [URL]) {
         let books = urls.filter { $0.isFileURL && $0.pathExtension.lowercased() == "epub" }
         guard !books.isEmpty else { return }
-        guard !busy else { errorMessage = "Finish or cancel the current task, then open the EPUB again."; return }
-        if books.count == 1 { loadBook(books[0]) } else { addToAudiobookQueue(books) }
+        // Opening a book for review would interrupt a conversion; queue it instead.
+        if books.count == 1 && !busy { loadBook(books[0]) } else { addToAudiobookQueue(books) }
     }
 
     func queueCurrentBook() {
@@ -291,7 +309,7 @@ final class AppModel: ObservableObject {
 
     /// Opens a book for review. A queue job supplies its saved sections, order, and titles.
     func loadBook(_ url: URL, job: AudiobookJob? = nil, showAudiobook: Bool = true) {
-        guard !isExporting, !downloadInProgress, !isCombining, !audiobookQueue.isRunning else { return }
+        guard !isExporting, !isCombining, !audiobookQueue.isRunning else { return }
         let queueID = job?.id
         if queueID == nil { selectedQueueJob = nil }
         stopPreview()
@@ -517,7 +535,7 @@ final class AppModel: ObservableObject {
         if isPreviewing { stopPreview(); return }
         guard narrationReady, !busy else { return }
         let narrated = currentNarratedText.flatMap { $0.isEmpty ? nil : $0 }
-        let text = narrated ?? "Welcome. This is a preview of the voice for your audiobook. Choose a speaking speed that feels comfortable to you."
+        let text = narrated ?? "This is a preview of the narration voice. Adjust the speaking speed until it sounds right."
         let sample = SpeechText.preview(text, provider: provider)
         let api: APINarration?
         do { api = try apiSettings(); _ = try budget() } catch { errorMessage = error.localizedDescription; return }
@@ -570,7 +588,7 @@ final class AppModel: ObservableObject {
             panel.allowedContentTypes = [UTType(filenameExtension: mode.fileExtension) ?? .audio]
             panel.nameFieldStringValue = FileNames.safe(book.title) + "." + mode.fileExtension
             panel.prompt = "Create Audiobook"
-            panel.message = "Choose a new filename for your audiobook."
+            panel.message = "Choose a new filename for the audiobook."
             guard panel.runModal() == .OK, let url = panel.url else { return }
             destination = url
         } else {
@@ -612,7 +630,7 @@ final class AppModel: ObservableObject {
                 }
                 exportedURL = result
                 progress = 1
-                status = "Your audiobook is ready."
+                status = "The audiobook is ready."
                 CompletionNotifier.post(title: "Audiobook ready", body: book.title)
             } catch is CancellationError {
                 status = "Export cancelled."

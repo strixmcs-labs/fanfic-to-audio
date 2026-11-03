@@ -190,8 +190,8 @@ public struct APISpeechClient: Sendable {
             let hint: String
             switch response.statusCode {
             case 401, 403: hint = "Check the API key and its permissions."
-            case 402: hint = "Add credits to your account, then retry when ready."
-            case 429: hint = "Check your quota or rate limit, then retry when ready."
+            case 402: hint = "Add credits to the provider account, then retry when ready."
+            case 429: hint = "Check the account quota or rate limit, then retry when ready."
             default: hint = "Check the voice, model, and provider status, then retry when ready."
             }
             // Bodies can echo book text or credentials; never show them in errors.

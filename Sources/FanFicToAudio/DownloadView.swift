@@ -3,6 +3,8 @@ import DownloadCore
 
 struct DownloadView: View {
     @ObservedObject var model: DownloadModel
+    /// False while audio converts; finished books still join the queue automatically.
+    let canOpenBooks: Bool
     let openBook: (URL) -> Void
     private let accent = AppTheme.oxblood
 
@@ -10,9 +12,8 @@ struct DownloadView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("FROM STORY LINK TO SPOKEN WORD").font(.system(size: 10, weight: .bold, design: .rounded)).tracking(2).foregroundStyle(accent)
-                    Text("Download by link").font(.system(size: 32, weight: .semibold, design: .serif))
-                    Text("Paste a story page or an EPUB download link, then choose its voice and create your audiobook.").foregroundStyle(.secondary)
+                    Text("Download by link").font(.system(size: 28, weight: .semibold))
+                    Text("Paste a story page or an EPUB download link. Finished downloads join the audiobook queue, including while a conversion runs.").foregroundStyle(.secondary)
                 }
                 HStack(alignment: .top, spacing: 20) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -21,7 +22,8 @@ struct DownloadView: View {
                         TextEditor(text: $model.links)
                             .font(.system(.body, design: .monospaced)).scrollContentBackground(.hidden)
                             .padding(8).frame(minHeight: 125, maxHeight: 160)
-                            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                            .background(AppTheme.background, in: RoundedRectangle(cornerRadius: AppTheme.radius))
+                            .overlay(RoundedRectangle(cornerRadius: AppTheme.radius).stroke(AppTheme.lineStrong, lineWidth: 1))
                             .accessibilityLabel("Story or EPUB URLs, one per line")
                         HStack {
                             Picker("Action", selection: $model.selectedOperation) {
@@ -42,11 +44,10 @@ struct DownloadView: View {
                             Button("Add to Queue") { model.addLinks() }.disabled(model.links.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             Spacer()
                             Button(model.selectedOperation == "download" ? "Download & Prepare Audiobook" : "Run Action") { model.addLinks(startImmediately: true) }
-                                .buttonStyle(.borderedProminent).controlSize(.large)
+                                .buttonStyle(LabsButtonStyle(variant: .primary, large: true))
                                 .disabled(model.isRunning || model.links.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
-                    }.padding(20).frame(maxWidth: .infinity)
-                        .background(AppTheme.card, in: RoundedRectangle(cornerRadius: 12))
+                    }.frame(maxWidth: .infinity, alignment: .leading).labsCard()
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Download preferences").font(.headline)
                         Text("Save EPUBs to").font(.caption).foregroundStyle(.secondary)
@@ -61,10 +62,9 @@ struct DownloadView: View {
                             if model.ini != nil { Button("Clear") { model.ini = nil } }
                         }
                         Toggle("Allow adult stories", isOn: $model.adult).font(.callout)
-                        Text("Login details come from your selected INI. This choice applies to new and retried jobs.")
+                        Text("Login details come from the selected INI. This choice applies to new and retried jobs.")
                             .font(.caption).foregroundStyle(.secondary)
-                    }.padding(20).frame(width: 270, alignment: .leading)
-                        .background(AppTheme.card, in: RoundedRectangle(cornerRadius: 12))
+                    }.frame(width: 230, alignment: .leading).labsCard()
                 }
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
@@ -80,39 +80,40 @@ struct DownloadView: View {
                     if model.jobs.isEmpty {
                         VStack(spacing: 10) {
                             Image(systemName: "arrow.down.document").font(.system(size: 32)).foregroundStyle(accent)
-                            Text("Your stories will appear here.").font(.headline)
-                            Text("Already have an EPUB? Open it from the toolbar to start narrating.")
+                            Text("Downloaded stories appear here.").font(.headline)
+                            Text("For an EPUB already on this Mac, use Open EPUB… in the toolbar.")
                                 .font(.callout).foregroundStyle(.secondary)
                         }.frame(maxWidth: .infinity).padding(32)
                     } else {
                         ForEach(model.jobs) { job in
                             Button { model.selected = job.id } label: {
                                 HStack(alignment: .top, spacing: 14) {
-                                    Image(systemName: job.path != nil ? "book.closed.fill" : job.state == .failed ? "exclamationmark.circle" : "link")
-                                        .font(.title2).foregroundStyle(accent).frame(width: 32).padding(.top, 4)
+                                    Image(systemName: job.path != nil ? "book.closed" : job.state == .failed ? "exclamationmark.circle" : "link")
+                                        .font(.system(size: 20, weight: .light)).foregroundStyle(accent).frame(width: 32).padding(.top, 4)
+                                        .accessibilityHidden(true)
                                     VStack(alignment: .leading, spacing: 5) {
                                         Text(job.title).font(.headline).lineLimit(2).textSelection(.enabled)
                                         if !job.author.isEmpty { Text(job.author).font(.callout).foregroundStyle(.secondary) }
                                         if !job.wordCount.isEmpty { Text(job.wordCount).font(.caption).foregroundStyle(.secondary) }
                                         Text(job.message.isEmpty ? job.request.operation.capitalized : job.message)
-                                            .font(.caption).foregroundStyle(job.state == .failed ? .red : .secondary).lineLimit(4)
+                                            .font(.caption).foregroundStyle(job.state == .failed ? AppTheme.text : Color.secondary).lineLimit(4)
                                         if job.state == .running {
                                             if let progress = job.progress { ProgressView(value: progress, total: 100) }
                                             else { ProgressView().controlSize(.small) }
                                         }
                                     }
                                     Spacer()
-                                    Text(job.state.rawValue).font(.caption.weight(.medium)).padding(.horizontal, 10).padding(.vertical, 5)
-                                        .background(accent.opacity(0.1), in: Capsule())
+                                    LabsBadge(label: job.state.rawValue, tone: [.running, .failed].contains(job.state) ? .accent : .neutral)
                                 }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(model.selected == job.id ? accent.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 10))
-                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(model.selected == job.id ? accent.opacity(0.45) : Color.secondary.opacity(0.15)))
+                                    .labsRow(selected: model.selected == job.id)
+                                    .contentShape(RoundedRectangle(cornerRadius: AppTheme.radiusMedium))
                             }.buttonStyle(.plain)
                         }
                         if let selected = model.selectedJob {
                             HStack {
                                 if let path = selected.path {
-                                    Button("Make Audiobook") { openBook(path) }.buttonStyle(.borderedProminent).disabled(model.isRunning)
+                                    Button("Make Audiobook") { openBook(path) }.buttonStyle(.borderedProminent).disabled(model.isRunning || !canOpenBooks)
+                                        .help(canOpenBooks ? "Open this EPUB in Create Audiobook" : "Already in the audiobook queue; available after the current conversion")
                                     Button("Show EPUB in Finder", action: model.revealSelected)
                                 }
                                 if selected.state.canRetry {
@@ -127,8 +128,8 @@ struct DownloadView: View {
                             }
                         }
                     }
-                }.padding(20).background(AppTheme.card, in: RoundedRectangle(cornerRadius: 12))
-                Text("FanFicFare handles supported story sites and their access requirements. Direct EPUB links are downloaded and validated before saving. EPUBs stay in your chosen folder. Choose macOS voices or an AI speech provider in the audiobook section.")
+                }.labsCard()
+                Text("FanFicFare handles supported story sites and their access requirements. Direct EPUB links are downloaded and validated before saving. EPUBs stay in the chosen folder. Voices and AI speech providers are set in Create Audiobook.")
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(32).frame(maxWidth: 1100, alignment: .leading).frame(maxWidth: .infinity)
         }

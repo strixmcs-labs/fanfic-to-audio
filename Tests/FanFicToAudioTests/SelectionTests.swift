@@ -39,7 +39,7 @@ import DownloadCore
         await model.shutdown()
     }
 
-    @Test func queueSelectionCannotChangeDuringIndividualExportOrDownload() async throws {
+    @Test func queueSelectionWaitsForExportsButNotDownloads() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let model = AppModel(storageRoot: root)
@@ -55,13 +55,12 @@ import DownloadCore
         model.selectedQueueJob = secondID
         #expect(model.selectedQueueJob == firstID)
         #expect(model.book?.source == first)
+        // Downloads run beside everything else, so they no longer hold the selection.
         model.isExporting = false; model.downloadInProgress = true
-        model.selectedQueueJob = secondID
-        #expect(model.selectedQueueJob == firstID)
-        model.downloadInProgress = false
         #expect(model.canSelectQueue)
         model.selectedQueueJob = secondID
         #expect(model.selectedQueueJob == secondID)
+        model.downloadInProgress = false
         await model.shutdown()
     }
 }
@@ -92,6 +91,23 @@ import DownloadCore
         model.openFiles([root.appendingPathComponent("a.epub"), root.appendingPathComponent("b.EPUB"), root.appendingPathComponent("notes.txt")])
         #expect(model.audiobookQueue.jobs.map(\.source.lastPathComponent) == ["a.epub", "b.EPUB"])
         #expect(model.pane == .queue && model.stage == 1)
+        await model.shutdown()
+    }
+
+    @Test func booksAddedDuringAnExportKeepTheCurrentView() async {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let model = AppModel(storageRoot: root)
+        model.stage = 0; model.pane = .book
+        model.isExporting = true
+        model.addToAudiobookQueue([root.appendingPathComponent("downloaded.epub")])
+        #expect(model.audiobookQueue.jobs.map(\.source.lastPathComponent) == ["downloaded.epub"])
+        #expect(model.stage == 0 && model.pane == .book && model.selectedQueueJob == nil)
+        #expect(model.queueNotice?.contains("Added 1 EPUB") == true)
+        // A single file opened during a conversion is queued rather than interrupting it.
+        model.openFiles([root.appendingPathComponent("opened.epub")])
+        #expect(model.audiobookQueue.jobs.count == 2 && model.book == nil)
+        model.isExporting = false
         await model.shutdown()
     }
 

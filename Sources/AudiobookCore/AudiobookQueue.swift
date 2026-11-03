@@ -73,8 +73,11 @@ public final class AudiobookQueue: ObservableObject {
     private var task: Task<Void, Never>?
     private var runner: ProcessRunner?
     private var pauseRequested = false
+    /// Jobs taken up by the current run, in the order they started.
     private var batchIDs: [UUID] = []
     private var batchFinished = 0
+    // Provider keys for the current run, held in memory only and cleared when it ends.
+    private var runKeys: [NarrationProvider: String] = [:]
 
     public init(storage: URL? = nil, checkpointRoot: URL? = nil, reader: @escaping Reader = { url in
         try await EPUBLibrary.shared.read(url)
@@ -111,10 +114,12 @@ public final class AudiobookQueue: ObservableObject {
     }
 
     public var queuedCount: Int { jobs.filter { $0.state == .queued }.count }
+    /// While the queue runs, every job except the one converting can still be edited.
+    public func isLocked(_ id: UUID) -> Bool { jobs.first(where: { $0.id == id })?.state == .running }
     public func rememberSelection(_ id: UUID?) { selectedID = id; persist() }
 
+    /// Adds EPUBs, including while the queue runs; a running queue converts them before it stops.
     @discardableResult public func add(_ urls: [URL], chapterIDs: Set<String>? = nil, chapterOrder: [String]? = nil, chapterTitles: [String: String]? = nil) -> Int {
-        guard !isRunning else { return 0 }
         var pending = Set(jobs.filter { [.queued, .running].contains($0.state) }.map { $0.source.resolvingSymlinksInPath().standardizedFileURL })
         var added = 0
         for url in urls where url.isFileURL && url.pathExtension.lowercased() == "epub" {
@@ -123,18 +128,18 @@ public final class AudiobookQueue: ObservableObject {
                 jobs.append(AudiobookJob(source: url, chapterIDs: chapterIDs, chapterOrder: chapterOrder, chapterTitles: chapterTitles)); added += 1
             }
         }
-        if added > 0 { summary = "\(queuedCount) " + (queuedCount == 1 ? "EPUB ready to convert." : "EPUBs ready to convert.") }
+        if added > 0 && !isRunning { summary = "\(queuedCount) " + (queuedCount == 1 ? "EPUB ready to convert." : "EPUBs ready to convert.") }
         return added
     }
 
     public func remove(_ id: UUID) {
-        guard !isRunning else { return }
+        guard !isLocked(id) else { return }
         jobs.removeAll { $0.id == id }
         discardCheckpoint(id)
     }
 
     public func canMove(_ id: UUID, by offset: Int) -> Bool {
-        guard !isRunning, abs(offset) == 1, let index = jobs.firstIndex(where: { $0.id == id }) else { return false }
+        guard !isLocked(id), abs(offset) == 1, let index = jobs.firstIndex(where: { $0.id == id }) else { return false }
         return jobs.indices.contains(index + offset)
     }
 
@@ -159,39 +164,38 @@ public final class AudiobookQueue: ObservableObject {
     }
 
     public func clearFinished() {
-        guard !isRunning else { return }
         for job in jobs where job.state == .done { discardCheckpoint(job.id) }
         jobs.removeAll { $0.state == .done }
     }
 
     public func retry(_ id: UUID) {
-        guard !isRunning, let index = jobs.firstIndex(where: { $0.id == id }), [.failed, .cancelled].contains(jobs[index].state) else { return }
+        guard let index = jobs.firstIndex(where: { $0.id == id }), [.failed, .cancelled].contains(jobs[index].state) else { return }
         jobs[index].state = .queued; jobs[index].progress = 0
         jobs[index].message = "Waiting to retry."; jobs[index].output = nil
     }
 
     public func updateSettings(_ id: UUID, chapterIDs: Set<String>, chapterOrder: [String]? = nil, chapterTitles: [String: String]? = nil,
                                narration: NarrationPreset?) {
-        guard !isRunning, let index = jobs.firstIndex(where: { $0.id == id }), jobs[index].state != .done else { return }
+        guard let index = jobs.firstIndex(where: { $0.id == id }), ![.done, .running].contains(jobs[index].state) else { return }
         jobs[index].chapterIDs = chapterIDs; jobs[index].chapterOrder = chapterOrder
         jobs[index].chapterTitles = chapterTitles; jobs[index].narration = narration
     }
 
     /// Returns a waiting job to the settings in effect when the queue starts; sections are kept.
     public func clearNarration(_ id: UUID) {
-        guard !isRunning, let index = jobs.firstIndex(where: { $0.id == id }), jobs[index].state != .done else { return }
+        guard let index = jobs.firstIndex(where: { $0.id == id }), ![.done, .running].contains(jobs[index].state) else { return }
         jobs[index].narration = nil
     }
 
     public func move(_ id: UUID, before target: UUID) {
-        guard !isRunning, id != target, let from = jobs.firstIndex(where: { $0.id == id }) else { return }
+        guard !isLocked(id), id != target, let from = jobs.firstIndex(where: { $0.id == id }) else { return }
         let job = jobs.remove(at: from)
         if let to = jobs.firstIndex(where: { $0.id == target }) { jobs.insert(job, at: to) }
         else { jobs.insert(job, at: min(from, jobs.count)) }
     }
 
     public func discardCheckpoint(_ id: UUID) {
-        guard !isRunning else { return }
+        guard !isLocked(id) else { return }
         if let root = checkpointRoot { try? FileManager.default.removeItem(at: root.appendingPathComponent(id.uuidString)) }
     }
 
@@ -226,63 +230,66 @@ public final class AudiobookQueue: ObservableObject {
             }
         }
         for index in jobs.indices where jobs[index].state == .queued && jobs[index].narration == nil { jobs[index].narration = preset }
-        batchIDs = jobs.filter { $0.state == .queued }.map(\.id)
+        runKeys = keys
+        batchIDs = []
         batchFinished = 0; batchProgress = 0; pauseRequested = false; isRunning = true
-        summary = "Starting \(batchIDs.count) " + (batchIDs.count == 1 ? "audiobook…" : "audiobooks…")
+        summary = "Starting \(queuedCount) " + (queuedCount == 1 ? "audiobook…" : "audiobooks…")
         task = Task { [self] in
             // Retain the activity between books, not just during individual exports.
             let activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .idleSystemSleepDisabled], reason: "Creating queued audiobooks")
             defer { ProcessInfo.processInfo.endActivity(activity) }
-            for id in batchIDs {
-                if pauseRequested { break }
-                guard let index = jobs.firstIndex(where: { $0.id == id }) else { continue }
-                jobs[index].state = .running; jobs[index].message = "Reading EPUB…"
-                summary = "Converting \(batchFinished + 1) of \(batchIDs.count): \(jobs[index].title)"
-                let source = jobs[index].source
-                let selectedIDs = jobs[index].chapterIDs
-                let order = jobs[index].chapterOrder
-                let titles = jobs[index].chapterTitles
+            // Take the next waiting job in the current order each time, so books added, moved, or
+            // retried during the run are included. Jobs are found by ID after every await, because
+            // the list can change while a book converts.
+            while !pauseRequested, let id = jobs.first(where: { $0.state == .queued })?.id {
+                batchIDs.append(id)
+                updateJob(id) { job in
+                    job.state = .running; job.message = "Reading EPUB…"
+                    if job.narration == nil { job.narration = preset }
+                }
+                guard let job = jobs.first(where: { $0.id == id }) else { continue }
+                summary = progressSummary(job.title)
+                batchProgress = Double(batchFinished) / Double(max(1, batchFinished + queuedCount + 1))
                 let processRunner = ProcessRunner()
                 runner = processRunner
                 do {
-                    let book = try await reader(source)
+                    let book = try await reader(job.source)
                     try Task.checkCancellation()
-                    jobs[index].title = book.title; jobs[index].author = book.author
+                    updateJob(id) { $0.title = book.title; $0.author = book.author }
                     activeBook = (id, book)
-                    let chapterIDs = selectedIDs ?? Set(book.chapters.filter(\.includedByDefault).map(\.id))
-                    let narration = jobs[index].narration ?? preset
+                    let chapterIDs = job.chapterIDs ?? Set(book.chapters.filter(\.includedByDefault).map(\.id))
+                    let narration = job.narration ?? preset
+                    if narration.provider != .system, runKeys[narration.provider] == nil {
+                        // A book added during the run may use a provider not resolved at the start.
+                        runKeys[narration.provider] = try keyResolver(narration.provider)
+                    }
                     let budget = settings.budgets[narration.pricingID] ?? (narration.provider == settings.api?.provider && narration.model == settings.api?.model
                         ? settings.budget : APIBudget(characterLimit: settings.budget?.characterLimit, costLimit: settings.budget?.costLimit))
                     let options = ExportOptions(voice: narration.voice, wordsPerMinute: narration.wordsPerMinute,
                         bitrate: narration.bitrate, mode: narration.mode, chapterIDs: chapterIDs, ffmpeg: settings.ffmpeg,
-                        api: narration.api(key: keys[narration.provider] ?? ""),
+                        api: narration.api(key: runKeys[narration.provider] ?? ""),
                         checkpoint: checkpointRoot?.appendingPathComponent(id.uuidString), usage: settings.usage, budget: budget,
                         text: narration.textOptions)
                     let destination = Self.uniqueDestination(title: book.title, folder: folder, mode: narration.mode)
-                    jobs[index].output = destination
+                    updateJob(id) { $0.output = destination }
                     // The open-book view applies the order itself; only the export is rearranged.
-                    let result = try await exporter(book.reordered(order).retitled(titles), options, destination, processRunner) { [weak self] update in
+                    let result = try await exporter(book.reordered(job.chapterOrder).retitled(job.chapterTitles), options, destination, processRunner) { [weak self] update in
                         Task { @MainActor [weak self] in self?.receive(update, id: id) }
                     }
-                    jobs[index].output = result; jobs[index].state = .done
-                    jobs[index].progress = 1; jobs[index].message = "Audiobook ready."
+                    updateJob(id) { $0.output = result; $0.state = .done; $0.progress = 1; $0.message = "Audiobook ready." }
                 } catch is CancellationError {
-                    jobs[index].output = nil
-                    jobs[index].state = .cancelled; jobs[index].progress = 0
-                    jobs[index].message = "Paused. Retry to resume completed passages."
+                    updateJob(id) { $0.output = nil; $0.state = .cancelled; $0.progress = 0; $0.message = "Paused. Retry to resume completed passages." }
                 } catch let error as APIUsageError {
-                    jobs[index].output = nil; jobs[index].state = .failed
-                    jobs[index].message = error.localizedDescription
+                    updateJob(id) { $0.output = nil; $0.state = .failed; $0.message = error.localizedDescription }
                     pauseRequested = true
                 } catch {
-                    jobs[index].output = nil
-                    jobs[index].state = .failed; jobs[index].progress = 0
-                    jobs[index].message = error.localizedDescription
+                    updateJob(id) { $0.output = nil; $0.state = .failed; $0.progress = 0; $0.message = error.localizedDescription }
                 }
                 runner = nil
                 batchFinished += 1
-                batchProgress = Double(batchFinished) / Double(batchIDs.count)
+                batchProgress = Double(batchFinished) / Double(max(1, batchFinished + queuedCount))
             }
+            runKeys = [:]
             let completed = jobs.filter { batchIDs.contains($0.id) && $0.state == .done }.count
             let failed = jobs.filter { batchIDs.contains($0.id) && $0.state == .failed }.count
             if pauseRequested {
@@ -299,8 +306,18 @@ public final class AudiobookQueue: ObservableObject {
     private func receive(_ update: ExportProgress, id: UUID) {
         guard let index = jobs.firstIndex(where: { $0.id == id }), jobs[index].state == .running else { return }
         jobs[index].progress = update.fraction; jobs[index].message = update.message
-        batchProgress = (Double(batchFinished) + update.fraction) / Double(max(1, batchIDs.count))
-        summary = "Converting \(batchFinished + 1) of \(batchIDs.count): \(jobs[index].title)"
+        // The total grows as books are added during the run.
+        batchProgress = (Double(batchFinished) + update.fraction) / Double(max(1, batchFinished + queuedCount + 1))
+        summary = progressSummary(jobs[index].title)
+    }
+
+    private func progressSummary(_ title: String) -> String {
+        "Converting \(batchFinished + 1) of \(batchFinished + queuedCount + 1): \(title)"
+    }
+
+    private func updateJob(_ id: UUID, _ change: (inout AudiobookJob) -> Void) {
+        guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
+        change(&jobs[index])
     }
 
     public func cancelAndPause() {

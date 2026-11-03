@@ -8,7 +8,7 @@ certifi==2026.7.22
 chardet==7.6.0
 charset-normalizer==3.5.2
 cloudscraper==1.2.71
-FanFicFare==4.62.0
+FanFicFare==4.63.0
 html2text==2025.4.15
 html5lib==1.1
 idna==3.20

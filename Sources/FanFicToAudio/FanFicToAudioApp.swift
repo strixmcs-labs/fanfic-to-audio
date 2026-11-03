@@ -19,10 +19,13 @@ struct FanFicToAudioApp: App {
         }
         .defaultSize(width: 1180, height: 820)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About FanFic to Audio", action: LabsCredits.showAboutPanel)
+            }
             CommandGroup(replacing: .newItem) {
                 Button("Open EPUB…", action: model.chooseEPUB).keyboardShortcut("o").disabled(model.busy)
                 Button("Add EPUBs to Audiobook Queue…", action: model.chooseQueuedEPUBs)
-                    .keyboardShortcut("o", modifiers: [.command, .shift]).disabled(model.busy)
+                    .keyboardShortcut("o", modifiers: [.command, .shift]).disabled(!model.canAddToQueue)
             }
             CommandGroup(after: .importExport) {
                 Button("Export Audiobook…", action: model.chooseDestinationAndExport)
@@ -32,7 +35,7 @@ struct FanFicToAudioApp: App {
         Settings {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Audiobook encoder").font(.title2.bold())
-                Text("macOS voices narrate your EPUBs. A standalone FFmpeg encoder is bundled for MP3 and M4B output.")
+                Text("macOS voices narrate the EPUBs. A standalone FFmpeg encoder is bundled for MP3 and M4B output.")
                 Text(model.ffmpeg?.path ?? "FFmpeg was not found.").font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                 Button("Choose FFmpeg…", action: model.chooseFFmpeg).disabled(model.busy)
                 Link("FFmpeg installation options", destination: URL(string: "https://ffmpeg.org/download.html#build-mac")!)
@@ -40,8 +43,14 @@ struct FanFicToAudioApp: App {
                 Text("Additional voices").font(.headline)
                 Text("Download voices in System Settings → Accessibility → Read & Speak (called Spoken Content on earlier macOS versions). Then refresh the voice list.")
                 Button("Refresh Voices") { Task { await model.loadVoices() } }.disabled(model.busy || model.isPreviewing)
+                Divider()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(LabsCredits.byline).font(.caption.weight(.medium))
+                    Text(LabsCredits.upstream).font(.caption).foregroundStyle(.secondary)
+                }
             }
             .padding(24).frame(width: 470).background(AppTheme.background).tint(AppTheme.oxblood)
+            .buttonStyle(LabsButtonStyle())
         }
     }
 }
@@ -65,5 +74,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
+    }
+}
+
+/// Publication credits for a StrixMCS Labs app: the Labs byline, then upstream credit beneath it.
+/// The seal and the Labs lockup appear only on absolute black, so the app shows the text forms.
+enum LabsCredits {
+    static let byline = "StrixMCS Labs · Dr. Matt Booth"
+    static let upstream = "Powered by FanFicFare, by Jim Miller (JimmXinu) and the FanFicFare contributors."
+
+    @MainActor static func showAboutPanel() {
+        let credits = NSMutableAttributedString(string: byline + "\n",
+            attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.labelColor])
+        credits.append(NSAttributedString(string: upstream,
+            attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.secondaryLabelColor]))
+        let centered = NSMutableParagraphStyle(); centered.alignment = .center
+        credits.addAttribute(.paragraphStyle, value: centered, range: NSRange(location: 0, length: credits.length))
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
+        NSApp.activate()
     }
 }

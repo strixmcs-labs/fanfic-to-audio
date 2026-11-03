@@ -191,7 +191,7 @@ public enum AudiobookExporter {
             try FileManager.default.moveItem(at: result, to: destination)
         }
         checkpoint?.discardCompleted()
-        progress(ExportProgress(1, "Your audiobook is ready."))
+        progress(ExportProgress(1, "The audiobook is ready."))
         return destination
     }
 
