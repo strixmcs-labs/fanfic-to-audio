@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.0 — Unreleased
+## 1.6.0 — 2026-11-02
 
 - Keep **Download by Link** and the audiobook queue available during conversion. Finished downloads always join the queue; a running queue takes each EPUB as it finishes downloading and keeps converting until no waiting books remain. Waiting books can be added, moved, retried, or removed during a run; only the book being converted is locked. A notice confirms additions instead of switching tabs, and downloads no longer lock the audiobook side.
 - Find each queued job by ID after every step of a conversion, so changes to the list mid-run always reach the right book.

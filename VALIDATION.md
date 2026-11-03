@@ -1,8 +1,21 @@
 # Validation
 
-Last checked: October 29, 2026. Candidate: **1.5.1**, build **7**.
+Last checked: November 2, 2026. Candidate: **1.6.0**, build **8**.
 
-## Version 1.5.1 checks
+## Version 1.6.0 checks
+
+- **80 native tests passed**: 67 audiobook tests, 5 download-bridge tests, and 8 app-model and credit tests. **50 Python tests passed** on FanFicFare 4.63.0, with two upstream deprecation warnings. GitHub Actions passed on pull request #14.
+- New coverage: books added or moved during a queue run are converted in that run while the converting job stays locked; results reach the right book when finished rows are cleared mid-conversion; books added during an export leave the current view and a file opened from Finder is queued; downloads no longer block queue selection; and the displayed FanFicFare version matches the build pin.
+- FanFicFare 4.63.0 removed `geturls.get_urls_from_page`; link discovery now uses `GetURLs`, covered by `test_extract_only_returns_links`. The dependency lock was regenerated in a clean Python 3.12 environment and differs only in FanFicFare. The packaged downloader reports `fanficfare-4.63.0`.
+- In the built 1.6.0 app, with a separate bundle identifier and isolated app data, the queue converted *Alice's Adventures in Wonderland* with a macOS voice at 550 wpm while the offline FanFicFare test story was downloaded through Download by Link. The download joined as job 2 with a notice and no tab switch, and the same run converted it next, ending "2 audiobooks ready" (3,486 s and 484 s MP3s). Dark-mode rendering of all panes, the FanFicFare credit in Download by Link, and the About panel were checked on screen.
+- All nested code and the app were signed with Developer ID Application, team `CF67T8RW6F`, hardened runtime, and secure timestamps, from source identical to `main` at the merge of pull request #14. The signed bundle passed deep/strict verification and the packaged helper/local narration smoke check (single MP3, chapter MP3s, M4B, metadata, 192 kbps streams).
+- Apple accepted the app submission `33021b69-fe2c-4abe-8a85-db5db7d2a48b` and the DMG submission `2007ec65-1598-4ef2-b2be-0371fa736f60`; both tickets were stapled and validated. The app extracted from the release ZIP and the DMG both assess as `Notarized Developer ID`.
+- Light mode on screen, the keyboard focus ring, live AI providers under the new queue flow, installation on another Mac, and Intel packaging were not verified.
+
+## Version 1.5.1 historical validation
+
+Checked October 29, 2026: version 1.5.1, build 7.
+
 
 - **76 native tests passed**: 65 audiobook tests, 5 download-bridge tests, and 6 app-model tests. **50 Python tests passed**, with two upstream deprecation warnings. GitHub Actions passed on pull request #11, and the suites were repeated locally on `main` after its merge.
 - New coverage includes the OpenRouter request format (endpoint, Bearer key, MP3 output, style sent only when entered, no speed sent), voice validation that accepts OpenRouter's period and colon voice names, the 2,000-byte passage limit, catalog decoding and filtering with no key sent, multilingual previews, and a mocked OpenRouter MP3 export through the real encoder.
