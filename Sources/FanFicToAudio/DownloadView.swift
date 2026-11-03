@@ -129,8 +129,14 @@ struct DownloadView: View {
                         }
                     }
                 }.labsCard()
-                Text("FanFicFare handles supported story sites and their access requirements. Direct EPUB links are downloaded and validated before saving. EPUBs stay in the chosen folder. Voices and AI speech providers are set in Create Audiobook.")
-                    .font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(LabsCredits.upstream).font(.caption.weight(.medium))
+                        Link("FanFicFare on GitHub", destination: LabsCredits.fanFicFareURL).font(.caption)
+                    }
+                    Text("FanFicFare handles supported story sites and their access requirements. Direct EPUB links are downloaded and validated before saving. EPUBs stay in the chosen folder. Voices and AI speech providers are set in Create Audiobook.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }.padding(32).frame(maxWidth: 1100, alignment: .leading).frame(maxWidth: .infinity)
         }
         .tint(accent)

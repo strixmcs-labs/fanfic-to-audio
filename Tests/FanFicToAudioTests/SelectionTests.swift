@@ -125,3 +125,14 @@ import DownloadCore
         #expect(restored.jobs.map(\.id) == first.jobs.map(\.id))
     }
 }
+
+struct CreditTests {
+    /// The in-app FanFicFare credit names the bundled release, so it must match the build pin.
+    @Test func displayedFanFicFareVersionMatchesTheBuildPin() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let requirements = try String(contentsOf: root.appendingPathComponent("requirements-build.txt"), encoding: .utf8)
+        let pin = requirements.split(separator: "\n").first { $0.hasPrefix("FanFicFare") }?.split(separator: "==").last.map(String.init)
+        #expect(pin == LabsCredits.fanFicFareVersion)
+        #expect(LabsCredits.upstream.contains("Jim Miller (JimmXinu)") && LabsCredits.upstream.contains(LabsCredits.fanFicFareVersion))
+    }
+}
