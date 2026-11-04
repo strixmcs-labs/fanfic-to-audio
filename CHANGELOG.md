@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.6.1 — Unreleased
+## 1.6.1 — 2026-11-03
 
 - Fix the Create Audiobook tab not resizing with the window. The Open Book and Queue panes now widen with the window, left-aligned under the header, up to a comfortable maximum; the queue list grows with the window instead of staying 240 points tall; and the text preview is taller. Voice & Text keeps a form width.
 - Add a **Now narrating** panel to the Queue pane while the queue runs: the book's cover with spine and page-edge shading, chapter ticks that fill as each section is narrated, the current section and passage, progress, listening time, word count, and narration settings. The section being narrated is marked in the Reading order sidebar.
