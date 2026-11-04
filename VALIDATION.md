@@ -1,8 +1,21 @@
 # Validation
 
-Last checked: November 2, 2026. Candidate: **1.6.0**, build **8**.
+Last checked: November 3, 2026. Candidate: **1.6.1**, build **9**.
 
-## Version 1.6.0 checks
+## Version 1.6.1 checks
+
+- **83 native tests passed**: 70 audiobook tests, 5 download-bridge tests, and 8 app-model and credit tests. **50 Python tests passed** on FanFicFare 4.63.0, with two upstream deprecation warnings.
+- New coverage: the exporter reports each section and passage with its progress, the queue publishes the converting book's progress and clears it between books, and the restored-queue summary uses the singular for one entry.
+- The resize bug was reproduced in the published 1.6.0 build with Window › Zoom: the Create Audiobook content stayed in a 900-point centered column under a full-width header. In the 1.6.1 build the Open Book and Queue panes widen with the window, left-aligned under the header up to 1,600 points, the queue list grows, and the window shrinks back cleanly.
+- With a three-book queue converting *Alice's Adventures in Wonderland* with a macOS voice, the Now narrating panel showed the EPUB cover with spine and page-edge shading, chapter ticks advancing from chapter 1 to 4, the section and passage, and the figures, and the Reading order sidebar marked the narrating chapter, through resizes, in dark mode. This used a separate bundle identifier and isolated app data.
+- All nested code and the app were signed with Developer ID Application, team `CF67T8RW6F`, hardened runtime, and secure timestamps, from source identical to `main` at the merge of pull request #16. A first signing attempt stopped with `errSecInternalComponent` after 64 of 100 items when the hardware-token prompt was not completed; the retry signed every item. The signed bundle passed deep/strict verification and the packaged helper/local narration smoke check.
+- Apple accepted the app submission `f6960e88-bc02-40c1-b907-3ab10b11c804` and the DMG submission `ad2e5d15-137c-4ea4-a9ae-b8fc56b380f1`; both tickets were stapled and validated. The app extracted from the release ZIP and the DMG both assess as `Notarized Developer ID`.
+- Light mode on screen, how macOS draws the More menu button, live AI providers, installation on another Mac, and Intel packaging were not verified.
+
+## Version 1.6.0 historical validation
+
+Checked November 2, 2026: version 1.6.0, build 8.
+
 
 - **80 native tests passed**: 67 audiobook tests, 5 download-bridge tests, and 8 app-model and credit tests. **50 Python tests passed** on FanFicFare 4.63.0, with two upstream deprecation warnings. GitHub Actions passed on pull request #14.
 - New coverage: books added or moved during a queue run are converted in that run while the converting job stays locked; results reach the right book when finished rows are cleared mid-conversion; books added during an export leave the current view and a file opened from Finder is queued; downloads no longer block queue selection; and the displayed FanFicFare version matches the build pin.
