@@ -17,6 +17,8 @@ enum AppTheme {
     /// Hairline rules and borders; depth is the hairline ring, never a shadow.
     static let line = dynamic(light: 0xE2E2E2, dark: 0x1C1C1C)
     static let lineStrong = dynamic(light: 0xCCCCCC, dark: 0x262626)
+    /// Narrated sections in the chapter ticks: secondary text strength.
+    static let tickDone = dynamic(light: 0x4A4A4A, dark: 0xA8A8A8)
     /// Display and label text.
     static let text = dynamic(light: 0x111111, dark: 0xF7F7F7)
     /// Accent for icons, tints, and selected text: Labs oxblood #650F20 (12.8:1 on white) in light

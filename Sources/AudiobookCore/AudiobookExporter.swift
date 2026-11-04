@@ -127,12 +127,14 @@ public enum AudiobookExporter {
             for (chunkIndex, chunk) in chunks.enumerated() {
                 try runner.checkCancellation()
                 let fraction = Double(completedCharacters) / Double(totalCharacters) * 0.94
-                progress(ExportProgress(fraction, "Narrating \(chapterIndex + 1) of \(chapters.count): \(chapter.title) · passage \(chunkIndex + 1) of \(chunks.count)"))
+                progress(ExportProgress(fraction, "Narrating \(chapterIndex + 1) of \(chapters.count): \(chapter.title) · passage \(chunkIndex + 1) of \(chunks.count)",
+                                        chapter: chapterIndex + 1, chapters: chapters.count, passage: chunkIndex + 1, passages: chunks.count))
                 let partName = passageName(chapterIndex, chunkIndex)
                 if let cached = cachedPassages[partName], let checkpoint {
                     parts.append(checkpoint.directory.appendingPathComponent(partName))
                     chapterDuration += cached.duration; completedCharacters += chunk.count
-                    progress(ExportProgress(Double(completedCharacters) / Double(totalCharacters) * 0.94, "Reusing completed passage \(chunkIndex + 1): \(chapter.title)"))
+                    progress(ExportProgress(Double(completedCharacters) / Double(totalCharacters) * 0.94, "Reusing completed passage \(chunkIndex + 1): \(chapter.title)",
+                                            chapter: chapterIndex + 1, chapters: chapters.count, passage: chunkIndex + 1, passages: chunks.count))
                     continue
                 }
                 let speech: URL
@@ -191,7 +193,7 @@ public enum AudiobookExporter {
             try FileManager.default.moveItem(at: result, to: destination)
         }
         checkpoint?.discardCompleted()
-        progress(ExportProgress(1, "The audiobook is ready."))
+        progress(ExportProgress(1, "The audiobook is ready"))
         return destination
     }
 

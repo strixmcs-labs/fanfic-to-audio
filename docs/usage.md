@@ -17,9 +17,17 @@ You can also open an existing EPUB directly into the audiobook view. Dropped EPU
 1. Open **Create Audiobook** and click **Add EPUBs…**. Select several EPUB files at once. You can also drop a group of EPUBs into this view or use Command-Shift-O.
 2. Choose the speech provider, voice, speed, MP3 quality, and **One audiobook MP3**, **MP3 per chapter**, or **M4B with chapters**. New jobs capture these settings when the batch starts. A saved per-book preset takes precedence.
 3. Click **Create Queued Audiobooks…** and select an output folder. With a folder already selected, click **Start Queue**.
-4. Each EPUB converts in queue order. Its row shows progress, success, or the reason for failure. Select a completed row and click **Show Audiobook in Finder**.
+4. Each EPUB converts in queue order. Its row shows progress, success, or the reason for failure. Select a completed row and click **Show in Finder**.
 
 Select a queue row to load its EPUB and chapter preview. The open book follows the active job during conversion. Use **Move Up**, **Move Down**, or drag rows to change the order. Selection is disabled during an individual export, so the highlighted row stays aligned with the open book.
+
+### While the queue runs
+
+A **Now narrating** panel at the top of the Queue pane shows the book being converted: its cover, a row of chapter ticks that fill as each section is narrated, the current section and passage, overall progress, the book's listening time and word count, and its narration settings. The section being narrated is also marked in the Reading order sidebar.
+
+The selected book's everyday actions sit in one toolbar under the list (**Move Up**, **Move Down**, **Remove**, plus **Retry** or **Show in Finder** when they apply). Less frequent actions are under **More**: saving the current settings and sections for the book, discarding its saved passages, and clearing completed books.
+
+The Create Audiobook tab grows with the window. The Open Book and Queue panes widen up to a comfortable maximum, and the queue list grows to show more books; Voice & Text keeps a form width.
 
 ### Adding books during a conversion
 
@@ -33,25 +41,25 @@ Conversion no longer halts the rest of the app. **Download by Link** stays avail
 
 Each book creates a separate MP3, M4B, or chapter folder named from its title. Duplicate titles receive numbered suffixes; existing outputs are preserved. A failed EPUB does not stop later books.
 
-**Cancel & Pause Queue** cancels the current book and leaves the remaining EPUBs queued. **Start Queue** resumes them. Use **Retry Selected** to requeue a failed or cancelled book, then start again. **Remove Selected** removes a row and its resume checkpoints, without deleting source or output files. **Clear Completed** clears successful rows only.
+**Cancel & Pause Queue** cancels the current book and leaves the remaining EPUBs queued. **Start Queue** resumes them. Use **Retry** to requeue a failed or cancelled book, then start again. **Remove** removes a row and its resume checkpoints, without deleting source or output files. **More › Clear Completed** clears successful rows only.
 
-EPUBs added from disk use their default reading-order sections. To customize a queued book, select its row, check the sections you want, choose narration/output settings, then click **Save Current Settings & Sections for Selected Book**. This also replaces a previous preset. **Add Open Book** keeps your current section selection for a new entry. The single-book export is on the **Open Book** pane.
+EPUBs added from disk use their default reading-order sections. To customize a queued book, select its row, check the sections you want, choose narration/output settings, then click **More › Save Current Settings & Sections for This Book**. This also replaces a previous preset. **Add Open Book** keeps your current section selection for a new entry. The single-book export is on the **Open Book** pane.
 
 When a queued book has saved settings, its row shows them and the selected book shows **Saved for this book**. If they differ from the **Voice & Text** controls, a note says the book will use its saved settings. **Use in Controls** copies them into the controls (which also become the defaults for new books); **Clear Saved Settings** makes the book use the controls in effect when the queue starts.
 
-The audiobook queue, order, selected row, per-book presets, and output folder survive app restarts. An interrupted running entry becomes queued; failed/cancelled entries retain their state until you click **Retry Selected**. Keys remain in Keychain and are resolved again before each batch. A missing or moved EPUB is reported as a failed job.
+The audiobook queue, order, selected row, per-book presets, and output folder survive app restarts. An interrupted running entry becomes queued; failed/cancelled entries retain their state until you click **Retry**. Keys remain in Keychain and are resolved again before each batch. A missing or moved EPUB is reported as a failed job.
 
-Completed passages are saved under `~/Library/Application Support/FanFicToAudio/Checkpoints`. Both individual and queued exports can reuse them. Reuse requires matching text, section choices, voice, provider/model/style/speed, bitrate, and output format; cached bytes are checksum-verified. Passages in progress when you cancel (up to three with OpenAI, two with ElevenLabs) may be sent and charged again; if a request fails, passages that other requests already returned are saved first. Completed exports remove their matching checkpoint. Older checkpoints with different settings remain until the job is removed or **Discard Saved Passages** is selected; single-book leftovers can be removed from that folder while the app is idle. **Clear Folder** resets only the output folder choice.
+Completed passages are saved under `~/Library/Application Support/FanFicToAudio/Checkpoints`. Both individual and queued exports can reuse them. Reuse requires matching text, section choices, voice, provider/model/style/speed, bitrate, and output format; cached bytes are checksum-verified. Passages in progress when you cancel (up to three with OpenAI, two with ElevenLabs) may be sent and charged again; if a request fails, passages that other requests already returned are saved first. Completed exports remove their matching checkpoint. Older checkpoints with different settings remain until the job is removed or **More › Discard Saved Passages** is selected; single-book leftovers can be removed from that folder while the app is idle. **Clear Folder** resets only the output folder choice.
 
 ## Reading order and narrated text
 
 Drag sections in the **Reading order** sidebar to change their order, or right-click a section to move it to the top, up, down, or bottom, or to **Rename…** it. A renamed title is used for M4B chapter markers, chapter file names, and read-aloud titles; **Use Original Title** restores the book's title. **Restore** (or **Restore EPUB Order** in the checklist menu) returns to the book's spine order. Exports, M4B chapter markers, chapter file numbering, and saved queue settings follow the custom order.
 
-Under **Narration**, **Skip author's notes** leaves out paragraphs that begin like "A/N:", "Author's Note", "T/N:", "Disclaimer", or "Notes:", and inline "(A/N: …)" asides. A note at the start of a section is removed through the first scene break (such as `***` or `oOo`) when one follows closely; a short note at the end of a section is removed with everything after it. A section containing only notes is skipped. **Read chapter titles aloud** adds the section title before sections whose text does not already begin with it; FanFicFare EPUBs normally include the heading already. The text preview and voice preview show the result. Both choices are saved with **Save Current Settings & Sections for Selected Book** and apply to queue entries without a saved preset.
+Under **Narration**, **Skip author's notes** leaves out paragraphs that begin like "A/N:", "Author's Note", "T/N:", "Disclaimer", or "Notes:", and inline "(A/N: …)" asides. A note at the start of a section is removed through the first scene break (such as `***` or `oOo`) when one follows closely; a short note at the end of a section is removed with everything after it. A section containing only notes is skipped. **Read chapter titles aloud** adds the section title before sections whose text does not already begin with it; FanFicFare EPUBs normally include the heading already. The text preview and voice preview show the result. Both choices are saved with **More › Save Current Settings & Sections for This Book** and apply to queue entries without a saved preset.
 
 ### Pronunciations
 
-Under **Voice & Text → Pronunciations**, click **Add Word** and enter a word as it appears in the book and a spelling that sounds right (for example, *Hermione* → *Her-my-oh-nee*). Whole words are replaced in every book, ignoring capitalization, for all voices; longer entries apply first. Incomplete rows are ignored. The list is saved with a book's settings when you click **Save Current Settings & Sections for Selected Book**.
+Under **Voice & Text → Pronunciations**, click **Add Word** and enter a word as it appears in the book and a spelling that sounds right (for example, *Hermione* → *Her-my-oh-nee*). Whole words are replaced in every book, ignoring capitalization, for all voices; longer entries apply first. Incomplete rows are ignored. The list is saved with a book's settings when you click **More › Save Current Settings & Sections for This Book**.
 
 ### Notifications
 

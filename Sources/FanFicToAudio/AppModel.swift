@@ -130,6 +130,7 @@ final class AppModel: ObservableObject {
     private var exportRunner: ProcessRunner?
     private var previewRunner: ProcessRunner?
     private struct NarrationCacheKey: Equatable { let options: NarrationTextOptions; let titles: [String: String] }
+    private var narratingChapters: (id: UUID, chapters: [BookChapter])?
     private var narrationCache: (key: NarrationCacheKey, book: EPUBBook)?
 
     init(storageRoot: URL = AppData.directory) {
@@ -172,6 +173,38 @@ final class AppModel: ObservableObject {
     var selectedNarratedChapters: [BookChapter] {
         narratedBook?.chapters.filter { selectedChapters.contains($0.id) } ?? []
     }
+    /// The sections the queue's converting book narrates, in export order, exactly as the exporter
+    /// prepares them. Cached per job, since the panel redraws on every progress update.
+    func chaptersBeingNarrated() -> [BookChapter] {
+        guard let active = audiobookQueue.activeBook,
+              let job = audiobookQueue.jobs.first(where: { $0.id == active.id }) else { return [] }
+        if let cache = narratingChapters, cache.id == active.id { return cache.chapters }
+        let ids = job.chapterIDs ?? Set(active.book.chapters.filter(\.includedByDefault).map(\.id))
+        let chapters = active.book.reordered(job.chapterOrder).retitled(job.chapterTitles)
+            .narrated((job.narration ?? presetFromControls()).textOptions).chapters.filter { ids.contains($0.id) }
+        narratingChapters = (active.id, chapters)
+        return chapters
+    }
+
+    /// The section ID the queue is narrating now, and the ones already narrated, for the sidebar.
+    var narratingChapterID: String? {
+        guard audiobookQueue.isRunning, let chapter = audiobookQueue.activeProgress?.chapter else { return nil }
+        let chapters = chaptersBeingNarrated()
+        return chapters.indices.contains(chapter - 1) ? chapters[chapter - 1].id : nil
+    }
+    var narratedChapterIDs: Set<String> {
+        guard audiobookQueue.isRunning, let chapter = audiobookQueue.activeProgress?.chapter else { return [] }
+        return Set(chaptersBeingNarrated().prefix(max(0, chapter - 1)).map(\.id))
+    }
+
+    /// Listening time for these sections at a preset's speed, like "About 54m".
+    func listeningTime(for chapters: [BookChapter], preset: NarrationPreset?) -> String {
+        let words = Double(chapters.reduce(0) { $0 + $1.wordCount })
+        let perMinute = preset.map { $0.provider == .system ? Double($0.wordsPerMinute) : 175 * $0.speed } ?? rate
+        let minutes = Int((words / max(1, perMinute)).rounded(.up))
+        return minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes)m"
+    }
+
     /// The open book with custom titles and text options applied; cached between renders.
     var narratedBook: EPUBBook? {
         guard let book else { return nil }

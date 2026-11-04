@@ -11,7 +11,7 @@
 | A download needs login | Select your own `personal.ini` with the correct site section. Interactive password and two-factor prompts are unsupported. Keep credentials out of issues and screenshots. |
 | A site rejects a download or shows a browser challenge | Check the site and FanFicFare's current adapter behavior. The native app does not automate interactive challenges. Avoid repeatedly retrying a site that is throttling requests. |
 | Queue actions are disabled | Wait for the active operation or cancel/pause it. Reordering and series combining require an idle audiobook queue. |
-| A failed book remains in the queue | Select it, use **Retry Selected**, then **Start Queue**. Later books continue after ordinary failures. |
+| A failed book remains in the queue | Select it, use **Retry**, then **Start Queue**. Later books continue after ordinary failures. |
 | A series combines in the wrong order | Use **Move Up** / **Move Down** before combining. The merger follows queue order, not checkbox selection order. |
 | Title pages are narrated | Open the book, uncheck unwanted sections, and use **Add Open Book** for a queue job with that selection. |
 | API preview/export is disabled | Choose the provider, enter your API key, and click **Save Key**. ElevenLabs also needs a valid voice ID; OpenRouter needs a model and voice. |

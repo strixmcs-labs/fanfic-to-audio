@@ -12,7 +12,7 @@ public struct AudiobookJob: Identifiable, Sendable, Codable {
     public var author = ""
     public var state: AudiobookJobState = .queued
     public var progress = 0.0
-    public var message = "Waiting to convert."
+    public var message = "Waiting to convert"
     public var output: URL?
     public var chapterIDs: Set<String>?
     /// Section IDs in a custom reading order; nil follows the EPUB spine.
@@ -66,8 +66,10 @@ public final class AudiobookQueue: ObservableObject {
     private struct Snapshot: Codable { let version: Int; let jobs: [AudiobookJob]; let selectedID: UUID? }
     @Published public private(set) var activeBook: (id: UUID, book: EPUBBook)?
     @Published public private(set) var isRunning = false
-    @Published public private(set) var summary = "Add EPUBs to create several audiobooks."
+    @Published public private(set) var summary = "Add EPUBs to create several audiobooks"
     @Published public private(set) var batchProgress = 0.0
+    /// The converting book's latest progress, including its section and passage; nil between books.
+    @Published public private(set) var activeProgress: ExportProgress?
     private let reader: Reader
     private let exporter: Exporter
     private var task: Task<Void, Never>?
@@ -97,7 +99,7 @@ public final class AudiobookQueue: ObservableObject {
                     var recovered = job
                     if recovered.state == .running {
                         if let output = recovered.output, FileManager.default.fileExists(atPath: output.path) {
-                            recovered.state = .done; recovered.progress = 1; recovered.message = "Recovered completed audiobook."
+                            recovered.state = .done; recovered.progress = 1; recovered.message = "Recovered completed audiobook"
                         } else {
                             recovered.state = .queued; recovered.message = "Interrupted. Start the queue to resume completed passages."
                         }
@@ -105,7 +107,7 @@ public final class AudiobookQueue: ObservableObject {
                     return recovered
                 }
                 selectedID = saved.selectedID
-                summary = "Restored \(jobs.count) queue entries."
+                summary = jobs.count == 1 ? "Restored 1 queue entry" : "Restored \(jobs.count) queue entries"
             } catch {
                 persistenceBlocked = true
                 persistenceError = "Saved queue could not be read; the original file has been preserved. \(error.localizedDescription)"
@@ -128,7 +130,7 @@ public final class AudiobookQueue: ObservableObject {
                 jobs.append(AudiobookJob(source: url, chapterIDs: chapterIDs, chapterOrder: chapterOrder, chapterTitles: chapterTitles)); added += 1
             }
         }
-        if added > 0 && !isRunning { summary = "\(queuedCount) " + (queuedCount == 1 ? "EPUB ready to convert." : "EPUBs ready to convert.") }
+        if added > 0 && !isRunning { summary = "\(queuedCount) " + (queuedCount == 1 ? "EPUB ready to convert" : "EPUBs ready to convert") }
         return added
     }
 
@@ -155,7 +157,7 @@ public final class AudiobookQueue: ObservableObject {
         for id in ids { discardCheckpoint(id) }
         jobs.removeAll { ids.contains($0.id) }
         jobs.insert(AudiobookJob(source: source), at: first)
-        summary = "Combined EPUB added to the queue."
+        summary = "Combined EPUB added to the queue"
     }
 
     public func updateMetadata(_ id: UUID, book: EPUBBook) {
@@ -171,7 +173,7 @@ public final class AudiobookQueue: ObservableObject {
     public func retry(_ id: UUID) {
         guard let index = jobs.firstIndex(where: { $0.id == id }), [.failed, .cancelled].contains(jobs[index].state) else { return }
         jobs[index].state = .queued; jobs[index].progress = 0
-        jobs[index].message = "Waiting to retry."; jobs[index].output = nil
+        jobs[index].message = "Waiting to retry"; jobs[index].output = nil
     }
 
     public func updateSettings(_ id: UUID, chapterIDs: Set<String>, chapterOrder: [String]? = nil, chapterTitles: [String: String]? = nil,
@@ -276,7 +278,7 @@ public final class AudiobookQueue: ObservableObject {
                     let result = try await exporter(book.reordered(job.chapterOrder).retitled(job.chapterTitles), options, destination, processRunner) { [weak self] update in
                         Task { @MainActor [weak self] in self?.receive(update, id: id) }
                     }
-                    updateJob(id) { $0.output = result; $0.state = .done; $0.progress = 1; $0.message = "Audiobook ready." }
+                    updateJob(id) { $0.output = result; $0.state = .done; $0.progress = 1; $0.message = "Audiobook ready" }
                 } catch is CancellationError {
                     updateJob(id) { $0.output = nil; $0.state = .cancelled; $0.progress = 0; $0.message = "Paused. Retry to resume completed passages." }
                 } catch let error as APIUsageError {
@@ -285,7 +287,7 @@ public final class AudiobookQueue: ObservableObject {
                 } catch {
                     updateJob(id) { $0.output = nil; $0.state = .failed; $0.progress = 0; $0.message = error.localizedDescription }
                 }
-                runner = nil
+                runner = nil; activeProgress = nil
                 batchFinished += 1
                 batchProgress = Double(batchFinished) / Double(max(1, batchFinished + queuedCount))
             }
@@ -295,7 +297,7 @@ public final class AudiobookQueue: ObservableObject {
             if pauseRequested {
                 summary = "Queue paused. \(completed) ready; \(queuedCount) waiting."
             } else {
-                summary = "\(completed) " + (completed == 1 ? "audiobook ready" : "audiobooks ready") + (failed > 0 ? "; \(failed) failed. Select a failed row to retry." : ".")
+                summary = "\(completed) " + (completed == 1 ? "audiobook ready" : "audiobooks ready") + (failed > 0 ? "; \(failed) failed. Select a failed row to retry." : "")
             }
             isRunning = false; task = nil
             persist()
@@ -306,6 +308,7 @@ public final class AudiobookQueue: ObservableObject {
     private func receive(_ update: ExportProgress, id: UUID) {
         guard let index = jobs.firstIndex(where: { $0.id == id }), jobs[index].state == .running else { return }
         jobs[index].progress = update.fraction; jobs[index].message = update.message
+        activeProgress = update
         // The total grows as books are added during the run.
         batchProgress = (Double(batchFinished) + update.fraction) / Double(max(1, batchFinished + queuedCount + 1))
         summary = progressSummary(jobs[index].title)

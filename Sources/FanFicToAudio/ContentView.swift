@@ -12,6 +12,8 @@ struct ContentView: View {
             Divider()
             VStack(spacing: 0) {
                 header
+                    .frame(maxWidth: Self.contentWidth, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
@@ -24,13 +26,19 @@ struct ContentView: View {
                         case .book:
                             bookPane
                         case .queue:
-                            narrationSummary
+                            if model.audiobookQueue.isRunning {
+                                NowNarratingPanel(model: model, queue: model.audiobookQueue)
+                            } else {
+                                narrationSummary
+                            }
                             AudiobookQueueView(model: model, queue: model.audiobookQueue)
                         }
                     }
                     .padding(32)
-                    .frame(maxWidth: 900, alignment: .leading)
-                    .frame(maxWidth: .infinity)
+                    // The content grows with the window, left-aligned under the header. Settings keep
+                    // a form width so their pickers don't stretch across a large screen.
+                    .frame(maxWidth: model.pane == .narration ? 960 : Self.contentWidth, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .background(AppTheme.background)
@@ -57,11 +65,14 @@ struct ContentView: View {
         }
     }
 
+    /// The widest the Open Book and Queue panes grow, including their padding.
+    static let contentWidth: CGFloat = 1600
+
     private var header: some View {
         HStack(alignment: .center, spacing: 20) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Create audiobooks").font(.system(size: 22, weight: .semibold))
-                Text("Voice, books, and the queue").font(.callout).foregroundStyle(.secondary)
+                Text("Narrate one EPUB on its own, or work through a queue of them.").font(.callout).foregroundStyle(.secondary)
             }
             Spacer()
             Picker("Section", selection: $model.pane) {
@@ -83,7 +94,7 @@ struct ContentView: View {
             Spacer()
             Button("Change…") { model.pane = .narration }
         }
-        .labsCard(padding: AppTheme.space3, accentLeft: true)
+        .labsCard(padding: AppTheme.space3)
     }
 
     @ViewBuilder private var bookPane: some View {
@@ -129,7 +140,10 @@ struct ContentView: View {
                     } label: { Image(systemName: "checklist") }.menuStyle(.borderlessButton).frame(width: 28)
                 }.padding(.horizontal, 20).padding(.bottom, 12).disabled(model.busy)
                 List(selection: $model.focusedChapter) {
+                    let narrating = model.narratingChapterID
+                    let narrated = model.narratedChapterIDs
                     ForEach(Array(model.orderedChapters.enumerated()), id: \.element.id) { index, chapter in
+                        let isNarrating = chapter.id == narrating
                         HStack(alignment: .top, spacing: 10) {
                             Toggle("Include \(chapter.title)", isOn: Binding(
                                 get: { model.selectedChapters.contains(chapter.id) },
@@ -137,11 +151,16 @@ struct ContentView: View {
                                 .labelsHidden().toggleStyle(.checkbox).disabled(model.busy)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(chapter.title).font(.system(size: 12, weight: .medium)).lineLimit(2)
-                                Text("\(index + 1) · \(chapter.wordCount.formatted()) words" + (model.chapterTitles[chapter.id] == nil ? "" : " · renamed"))
+                                    .foregroundStyle(narrated.contains(chapter.id) ? Color.secondary : AppTheme.text)
+                                Text("\(index + 1) · \(chapter.wordCount.formatted()) words" + (model.chapterTitles[chapter.id] == nil ? "" : " · renamed")
+                                     + (isNarrating ? " · narrating" : ""))
                                     .font(.caption2).foregroundStyle(.secondary)
                             }
                         }
-                        .padding(.vertical, 5)
+                        .padding(.vertical, 5).padding(.horizontal, 4)
+                        // The section being narrated gets the active state: a surface step and an oxblood hairline.
+                        .background(isNarrating ? AppTheme.raised : Color.clear, in: RoundedRectangle(cornerRadius: AppTheme.radius))
+                        .overlay(RoundedRectangle(cornerRadius: AppTheme.radius).stroke(isNarrating ? AppTheme.structure : Color.clear, lineWidth: 1))
                         .tag(chapter.id)
                         .contextMenu {
                             Button("Rename…") { model.renameDraft = chapter.title; model.renamingChapter = chapter.id }.disabled(model.busy)
@@ -205,18 +224,8 @@ struct ContentView: View {
 
     private func bookSummary(_ book: EPUBBook) -> some View {
         HStack(alignment: .top, spacing: 18) {
-            Group {
-                if let cover = model.coverImage {
-                    Image(nsImage: cover).resizable().aspectRatio(contentMode: .fill)
-                } else {
-                    ZStack {
-                        AppTheme.bookGradient
-                        Image(systemName: "book.closed").font(.system(size: 30, weight: .light)).foregroundStyle(.white.opacity(0.9))
-                    }
-                }
-            }
-            .frame(width: 68, height: 88).clipShape(RoundedRectangle(cornerRadius: AppTheme.radius))
-            .overlay(RoundedRectangle(cornerRadius: AppTheme.radius).stroke(AppTheme.line)).accessibilityHidden(true)
+            BookCover(title: book.title, author: book.author, image: model.coverImage)
+                .frame(width: 68, height: 96).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 6) {
                 Text(book.title).font(.title2.weight(.semibold)).textSelection(.enabled)
                 if !book.author.isEmpty { Text(book.author).foregroundStyle(.secondary).textSelection(.enabled) }
@@ -242,7 +251,7 @@ struct ContentView: View {
                     Text(text.isEmpty ? "This section is only author’s notes, so it will be skipped." : String(text.prefix(8000)))
                         .font(.system(size: 14)).lineSpacing(6)
                         .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-                }.frame(height: 125)
+                }.frame(height: 200)
                 if text != chapter.text {
                     Text("Shown as it will be narrated, with the author’s-note and title choices applied.").font(.caption2).foregroundStyle(.secondary)
                 }
