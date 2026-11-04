@@ -264,6 +264,33 @@ struct AudiobookQueueTests {
         #expect(queue.jobs.map { $0.output?.deletingPathExtension().lastPathComponent } == ["Shared Title (2)", "Shared Title (3)"])
     }
 
+    @Test func runningQueuePublishesSectionProgressAndClearsItBetweenBooks() async throws {
+        let root = try fixtureDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let source = try fixtures(root, names: ["one.epub"])[0]
+        let gate = ExportGate()
+        let queue = AudiobookQueue(reader: Self.readFixture, exporter: { book, _, destination, runner, progress in
+            progress(ExportProgress(0.4, "Narrating 2 of 3", chapter: 2, chapters: 3, passage: 1, passages: 4))
+            return try await gate.export(book.source, destination: destination, runner: runner)
+        })
+        queue.add([source])
+        try queue.start(settings: settings(), folder: root)
+        try await gate.waitForActive(source)
+        for _ in 0..<100 where queue.activeProgress == nil { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(queue.activeProgress?.chapter == 2 && queue.activeProgress?.chapters == 3 && queue.activeProgress?.passages == 4)
+        await gate.release()
+        await queue.waitUntilFinished()
+        #expect(queue.activeProgress == nil)
+    }
+
+    @Test func restoredSummaryCountsEntriesInTheRightNumber() throws {
+        let root = try fixtureDirectory(); defer { try? FileManager.default.removeItem(at: root) }
+        let storage = root.appendingPathComponent("queue.json")
+        AudiobookQueue(storage: storage).add(try fixtures(root, names: ["one.epub"]))
+        #expect(AudiobookQueue(storage: storage).summary == "Restored 1 queue entry")
+        AudiobookQueue(storage: storage).add(try fixtures(root, names: ["two.epub"]))
+        #expect(AudiobookQueue(storage: storage).summary == "Restored 2 queue entries")
+    }
+
     private func settings(voice: String = "Test Voice", mode: ExportMode = .single) -> BatchNarrationSettings {
         BatchNarrationSettings(voice: voice, wordsPerMinute: 200, bitrate: 96, mode: mode, ffmpeg: URL(fileURLWithPath: "/usr/bin/true"))
     }

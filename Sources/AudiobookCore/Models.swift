@@ -132,7 +132,16 @@ public struct ExportOptions: Sendable {
 public struct ExportProgress: Sendable {
     public let fraction: Double
     public let message: String
-    public init(_ fraction: Double, _ message: String) { self.fraction = fraction; self.message = message }
+    /// The section being narrated (1-based) and the number of sections in the export, when narrating.
+    public let chapter: Int?
+    public let chapters: Int?
+    /// The passage within that section (1-based) and its passage count.
+    public let passage: Int?
+    public let passages: Int?
+    public init(_ fraction: Double, _ message: String, chapter: Int? = nil, chapters: Int? = nil, passage: Int? = nil, passages: Int? = nil) {
+        self.fraction = fraction; self.message = message
+        self.chapter = chapter; self.chapters = chapters; self.passage = passage; self.passages = passages
+    }
 }
 
 public enum FileNames {

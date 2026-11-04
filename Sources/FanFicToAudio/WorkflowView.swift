@@ -44,14 +44,18 @@ struct WorkflowView: View {
     }
 
     private func queueNoticeBar(_ notice: String) -> some View {
+        // The screen's one oxblood left rule marks this notice.
         HStack(spacing: 10) {
             Image(systemName: "text.badge.plus").foregroundStyle(AppTheme.oxblood).accessibilityHidden(true)
             Text(notice).font(.callout)
             Spacer()
             Button("Show Queue") { audio.stage = 1; audio.pane = .queue; audio.queueNotice = nil }
-            Button("Dismiss") { audio.queueNotice = nil }
+                .buttonStyle(LabsButtonStyle(variant: .ghost))
+            Button("Dismiss") { audio.queueNotice = nil }.buttonStyle(LabsButtonStyle(variant: .ghost))
         }
-        .padding(.horizontal, 24).padding(.vertical, 8)
+        .padding(.leading, 21).padding(.trailing, 24).padding(.vertical, 8)
+        .background(AppTheme.accentWash)
+        .overlay(alignment: .leading) { Rectangle().fill(AppTheme.structure).frame(width: 3) }
         .overlay(alignment: .bottom) { Divider() }
     }
 

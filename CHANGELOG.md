@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.1 — Unreleased
+
+- Fix the Create Audiobook tab not resizing with the window. The Open Book and Queue panes now widen with the window, left-aligned under the header, up to a comfortable maximum; the queue list grows with the window instead of staying 240 points tall; and the text preview is taller. Voice & Text keeps a form width.
+- Add a **Now narrating** panel to the Queue pane while the queue runs: the book's cover with spine and page-edge shading, chapter ticks that fill as each section is narrated, the current section and passage, progress, listening time, word count, and narration settings. The section being narrated is marked in the Reading order sidebar.
+- Gather the selected book's actions into one toolbar (**Move Up**, **Move Down**, **Remove**, and **Retry** or **Show in Finder** when they apply) with rarer actions under **More**, and show the queue's counts beside its title.
+- Report the section and passage being narrated with each export progress update.
+- Drop trailing periods from short status text, fix "Restored 1 queue entries", reduce the queue's help text to one line, and keep the oxblood left rule for the added-to-queue notice only.
+- Saved queues, presets, completed passages, and downloads from 1.6.0 remain compatible.
+
 ## 1.6.0 — 2026-11-02
 
 - Keep **Download by Link** and the audiobook queue available during conversion. Finished downloads always join the queue; a running queue takes each EPUB as it finishes downloading and keeps converting until no waiting books remain. Waiting books can be added, moved, retried, or removed during a run; only the book being converted is locked. A notice confirms additions instead of switching tabs, and downloads no longer lock the audiobook side.

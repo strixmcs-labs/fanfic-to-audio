@@ -82,6 +82,27 @@ struct ExportConcurrencyTests {
         #expect(await sent.texts == ["Section 1."])
     }
 
+    @Test func exportReportsEachSectionAndPassage() async throws {
+        let ffmpeg = try #require(SpeechTools.findFFmpeg())
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("progress-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let clip = try tone(root, tenths: 1)
+        let client = APISpeechClient(transport: { request in
+            (clip, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        })
+        let book = EPUBBook(title: "Sections", author: "Test", language: "en", chapters: (1...3).map {
+            BookChapter(id: "\($0)", title: "Section \($0)", text: "Section \($0).")
+        }, source: root.appendingPathComponent("book.epub"))
+        let options = ExportOptions(voice: "", wordsPerMinute: 175, bitrate: 128, mode: .single, chapterIDs: ["1", "2", "3"], ffmpeg: ffmpeg,
+            api: APINarration(provider: .openAI, model: "test-model", voice: "testVoice", apiKey: "test-key"))
+        let updates = ProgressLog()
+        _ = try await AudiobookExporter.export(book: book, options: options, destination: root.appendingPathComponent("book.mp3"),
+                                               apiClient: client) { update in updates.record(update) }
+        #expect(updates.sections == [1, 2, 3])
+        #expect(updates.totals == [3])
+    }
+
     private func tone(_ root: URL, tenths: Int) throws -> Data {
         let url = root.appendingPathComponent("tone-\(tenths).wav")
         let format = AVAudioFormat(standardFormatWithSampleRate: 24000, channels: 1)!
@@ -92,6 +113,17 @@ struct ExportConcurrencyTests {
         do { let file = try AVAudioFile(forWriting: url, settings: format.settings); try file.write(from: buffer) }
         return try Data(contentsOf: url)
     }
+}
+
+/// Records progress in call order; the exporter reports synchronously from its own task.
+private final class ProgressLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var log: [ExportProgress] = []
+    func record(_ update: ExportProgress) { lock.lock(); log.append(update); lock.unlock() }
+    private var updates: [ExportProgress] { lock.lock(); defer { lock.unlock() }; return log }
+    /// Distinct sections reported, in order, and the section counts reported with them.
+    var sections: [Int] { updates.compactMap(\.chapter).reduce(into: []) { if $0.last != $1 { $0.append($1) } } }
+    var totals: Set<Int> { Set(updates.compactMap(\.chapters)) }
 }
 
 private actor SentTexts {
