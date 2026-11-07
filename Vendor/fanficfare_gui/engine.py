@@ -12,6 +12,7 @@ import tempfile
 import uuid
 import zipfile
 from urllib.parse import urlparse
+from xml.sax.saxutils import quoteattr
 
 from fanficfare import adapters, writers
 from fanficfare.configurable import Configuration
@@ -79,6 +80,10 @@ def metadata_summary(story):
     keys = ("title", "author", "storyUrl", "site", "numChapters", "numWords", "status", "dateUpdated", "description")
     result = {key: str(story.getMetadata(key) or "") for key in keys}
     result["wordCountSource"] = "site" if result["numWords"] else "unavailable"
+    fields = story_fields(story)
+    result["category"] = fields.get("fanfictoaudio:category", "")
+    result["rating"] = fields.get("fanfictoaudio:rating", "")
+    result["averageRating"] = fields.get("fanfictoaudio:average-rating", "")
     return result
 
 
@@ -147,6 +152,53 @@ def attach_page_progress(config, cache, emit):
 
     fetcher.do_request = request
     return phase
+
+
+# Story details the audiobook needs, recorded in the EPUB's package metadata whatever the
+# user's title-page settings. Literotica has no content rating; its average score is "averrating".
+STORY_FIELDS = (("category", "fanfictoaudio:category"), ("rating", "fanfictoaudio:rating"),
+                ("averrating", "fanfictoaudio:average-rating"))
+
+
+def story_fields(story):
+    fields = {}
+    for key, name in STORY_FIELDS:
+        try:
+            value = story.getMetadata(key, removeallentities=True)
+        except Exception:
+            value = None
+        value = " ".join(str(value or "").split())
+        if value:
+            fields[name] = value
+    return fields
+
+
+def record_story_fields(path, fields):
+    """Add labelled <meta> entries to a finished EPUB's package document, keeping the archive valid."""
+    if not fields:
+        return
+    with zipfile.ZipFile(path) as archive:
+        container = archive.read("META-INF/container.xml").decode("utf-8")
+        match = re.search(r'full-path="([^"]+)"', container)
+        if not match:
+            return
+        opf_name = match.group(1)
+        opf = archive.read(opf_name).decode("utf-8")
+        entries = [(info, archive.read(info.filename)) for info in archive.infolist()]
+    # Drop entries an earlier update recorded, so values never duplicate.
+    opf = re.sub(r'\s*<meta name="fanfictoaudio:[^"]*" content="[^"]*"\s*/>', "", opf)
+    lines = "".join(f"\n\t\t<meta name={quoteattr(name)} content={quoteattr(value)}/>" for name, value in fields.items())
+    opf, count = re.subn(r"(\s*</(?:opf:)?metadata>)", lambda m: lines + m.group(1), opf, count=1)
+    if not count:
+        return
+    rewritten = path.with_suffix(".meta.epub")
+    with zipfile.ZipFile(rewritten, "w") as out:
+        # The mimetype entry stays first and uncompressed, as EPUB requires.
+        for info, data in sorted(entries, key=lambda item: item[0].filename != "mimetype"):
+            body = opf.encode("utf-8") if info.filename == opf_name else data
+            kind = zipfile.ZIP_STORED if info.filename == "mimetype" else zipfile.ZIP_DEFLATED
+            out.writestr(zipfile.ZipInfo(info.filename, info.date_time), body, compress_type=kind)
+    os.replace(rewritten, path)
 
 
 def validate_output(path, fmt):
@@ -272,6 +324,8 @@ def execute(request, emit=lambda event: None, session=None):
             outfilename=str(staged), forceOverwrite=True,
             notification=chapter_progress,
         )
+        if fmt == "epub":
+            record_story_fields(staged, story_fields(full_story))
         session.remember_preview(scope, request["source"], summary)
         validate_output(staged, fmt)
         if fmt == "epub" and summary["wordCountSource"] == "calculated":

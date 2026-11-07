@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import DownloadCore
+import AudiobookCore
 import UniformTypeIdentifiers
 
 struct FinishedBook: Equatable {
@@ -20,6 +21,9 @@ struct StoryJob: Identifiable, Codable {
     var title: String
     var author = ""
     var wordCount = ""
+    /// "Category: Loving Wives · Average rating: 4.52", when the site gives them. Optional so
+    /// queues saved by earlier versions still load.
+    var details: String?
     var state = StoryState.queued
     var message = ""
     var progress: Double?
@@ -195,6 +199,8 @@ final class DownloadModel: ObservableObject {
         jobs[index].author = metadata["author"] ?? ""
         let count = metadata["numWords"] ?? ""
         jobs[index].wordCount = count.isEmpty ? "" : "\(count) words (\(metadata["wordCountSource"] ?? "site"))"
+        jobs[index].details = StoryDetails(category: metadata["category"] ?? "", rating: metadata["rating"] ?? "",
+                                           averageRating: metadata["averageRating"] ?? "").labelled.joined(separator: " · ")
     }
 
     /// Records a book the audiobook queue already took, so the end of the batch doesn't add it twice.

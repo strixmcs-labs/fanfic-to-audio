@@ -101,3 +101,28 @@ def test_worker_returns_machine_readable_failure(tmp_path):
     assert result.returncode == 1
     events = [json.loads(line) for line in result.stdout.splitlines()]
     assert events[-1]["type"] == "error"
+
+
+def test_epub_records_category_and_rating_for_the_audiobook(tmp_path):
+    saved = Path(execute(request(tmp_path))["path"])
+    with zipfile.ZipFile(saved) as archive:
+        assert archive.testzip() is None
+        assert archive.infolist()[0].filename == "mimetype"
+        assert archive.infolist()[0].compress_type == zipfile.ZIP_STORED
+        opf = archive.read("content.opf").decode("utf-8")
+    assert '<meta name="fanfictoaudio:rating" content="Tweenie"/>' in opf
+    assert '<meta name="fanfictoaudio:category" content="Furbie, Harry Potter' in opf
+    # The book still reads as a normal FanFicFare EPUB.
+    assert get_dcsource_chaptercount(str(saved))[1] == 2
+
+
+def test_recording_story_fields_replaces_earlier_values(tmp_path):
+    from fanficfare_gui.engine import record_story_fields
+    saved = Path(execute(request(tmp_path))["path"])
+    record_story_fields(saved, {"fanfictoaudio:category": "Loving Wives", "fanfictoaudio:average-rating": "4.52"})
+    with zipfile.ZipFile(saved) as archive:
+        opf = archive.read("content.opf").decode("utf-8")
+    assert opf.count("fanfictoaudio:category") == 1
+    assert '<meta name="fanfictoaudio:category" content="Loving Wives"/>' in opf
+    assert '<meta name="fanfictoaudio:average-rating" content="4.52"/>' in opf
+    assert "fanfictoaudio:rating\"" not in opf

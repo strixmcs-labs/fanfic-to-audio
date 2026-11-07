@@ -41,6 +41,7 @@ struct EPUBAudioCLI {
             let book = try EPUBReader.read(URL(fileURLWithPath: args[1]))
             if args[0] == "inspect" {
                 print("\(book.title)\n\(book.author)\nLanguage: \(book.language)")
+                for line in book.details.labelled { print(line) }
                 for chapter in book.chapters { print("\(chapter.includedByDefault ? "✓" : "·") \(chapter.title) — \(chapter.wordCount) words") }
                 for warning in book.warnings { print("Warning: \(warning)") }
                 return

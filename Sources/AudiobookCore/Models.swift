@@ -29,6 +29,24 @@ public struct BookChapter: Identifiable, Sendable {
     }
 }
 
+/// Where a story sits on its site and how it is rated, as recorded by the downloader
+/// (for example Literotica's "Loving Wives" category and its average reader rating).
+public struct StoryDetails: Sendable, Equatable {
+    public let category: String
+    public let rating: String
+    public let averageRating: String
+    public init(category: String = "", rating: String = "", averageRating: String = "") {
+        self.category = EPUBReader.normalized(category); self.rating = EPUBReader.normalized(rating)
+        self.averageRating = EPUBReader.normalized(averageRating)
+    }
+    public var isEmpty: Bool { category.isEmpty && rating.isEmpty && averageRating.isEmpty }
+    /// Labelled parts, e.g. ["Category: Loving Wives", "Average rating: 4.52"].
+    public var labelled: [String] {
+        [("Category", category), ("Rating", rating), ("Average rating", averageRating)]
+            .filter { !$0.1.isEmpty }.map { "\($0.0): \($0.1)" }
+    }
+}
+
 public struct EPUBBook: Sendable {
     public let title: String
     public let author: String
@@ -37,10 +55,12 @@ public struct EPUBBook: Sendable {
     public let source: URL
     public let warnings: [String]
     public let cover: Data?
-    public init(title: String, author: String, language: String, chapters: [BookChapter], source: URL, warnings: [String] = [], cover: Data? = nil) {
+    public let details: StoryDetails
+    public init(title: String, author: String, language: String, chapters: [BookChapter], source: URL, warnings: [String] = [],
+                cover: Data? = nil, details: StoryDetails = StoryDetails()) {
         self.title = title; self.author = author; self.language = language
         self.chapters = chapters; self.source = source; self.warnings = warnings
-        self.cover = cover
+        self.cover = cover; self.details = details
     }
     /// Applies a custom reading order. Unknown IDs are ignored; sections missing
     /// from the order follow in spine order, so every section is always present.
@@ -51,7 +71,7 @@ public struct EPUBBook: Sendable {
         var arranged = order.compactMap { id in seen.insert(id).inserted ? byID[id] : nil }
         arranged += chapters.filter { !seen.contains($0.id) }
         guard arranged.map(\.id) != chapters.map(\.id) else { return self }
-        return EPUBBook(title: title, author: author, language: language, chapters: arranged, source: source, warnings: warnings, cover: cover)
+        return EPUBBook(title: title, author: author, language: language, chapters: arranged, source: source, warnings: warnings, cover: cover, details: details)
     }
     /// Applies custom section titles by ID; blank or unknown entries are ignored.
     public func retitled(_ titles: [String: String]?) -> EPUBBook {
@@ -63,7 +83,7 @@ public struct EPUBBook: Sendable {
             return chapter.titled(title)
         }
         guard changed else { return self }
-        return EPUBBook(title: title, author: author, language: language, chapters: renamed, source: source, warnings: warnings, cover: cover)
+        return EPUBBook(title: title, author: author, language: language, chapters: renamed, source: source, warnings: warnings, cover: cover, details: details)
     }
 }
 

@@ -92,15 +92,15 @@ enum LabsCredits {
     static let upstream = "Story downloading is powered by FanFicFare \(fanFicFareVersion), by Jim Miller (JimmXinu) and the FanFicFare contributors, under the Apache License 2.0."
     static let independence = "FanFic to Audio is an independent application, not an official FanFicFare release."
     static let fanFicFareURL = URL(string: "https://github.com/JimmXinu/FanFicFare")!
+    static let labsGitHubURL = URL(string: "https://github.com/strixmcs-labs")!
 
+    /// The About panel shows the Labs byline and the StrixMCS Labs GitHub link; FanFicFare is
+    /// credited in Download by Link, Settings, the Help menu, and the documentation.
     @MainActor static func showAboutPanel() {
-        let credits = NSMutableAttributedString(string: byline + "\n\n",
+        let credits = NSMutableAttributedString(string: byline + "\n",
             attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.labelColor])
-        let note: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.secondaryLabelColor]
-        credits.append(NSAttributedString(string: upstream + "\n", attributes: note))
-        var link = note; link[.link] = fanFicFareURL
-        credits.append(NSAttributedString(string: "github.com/JimmXinu/FanFicFare", attributes: link))
-        credits.append(NSAttributedString(string: "\n\n" + independence, attributes: note))
+        credits.append(NSAttributedString(string: "github.com/strixmcs-labs",
+            attributes: [.font: NSFont.systemFont(ofSize: 11), .link: labsGitHubURL]))
         let centered = NSMutableParagraphStyle(); centered.alignment = .center
         credits.addAttribute(.paragraphStyle, value: centered, range: NSRange(location: 0, length: credits.length))
         NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])

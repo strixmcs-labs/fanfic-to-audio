@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.0 — 2026-11-07
+
+- Record each downloaded story's category and rating in its EPUB, for example Literotica's **Loving Wives** category and its average reader rating. FanFicFare's values are written into the EPUB's package metadata whether or not the INI includes a title page, so they survive personal INIs that turn the title page off. Updated books get fresh values.
+- Carry the category and rating into every audiobook. Single and chapter MP3s get standard ID3 frames that Music, QuickTime, and other players show: a comment such as "Category: Loving Wives · Average rating: 4.43", the category as grouping (TIT1 and GRP1), and labelled Category, Rating, and Average Rating fields. M4B files get the same comment and grouping. The AI-narration note follows in the comment when an AI voice is used.
+- Fix MP3 comments: FFmpeg stored them as user-defined `TXXX` frames that players don't show, so the AI-narration note in earlier MP3s was effectively hidden. The app now writes a standard `COMM` frame after encoding, leaving the audio unchanged.
+- Show the category and rating under each download, in the open book's summary, and in `epub-audio inspect`. EPUBs downloaded with FanFicFare before this release fall back to the labelled lines on FanFicFare's title page. Series EPUBs keep each volume's category once and the first volume's ratings.
+- Remove the FanFicFare credit from the About panel, which now shows the Labs byline and a link to [StrixMCS Labs on GitHub](https://github.com/strixmcs-labs). FanFicFare remains credited in Download by Link, Settings, the Help menu, and the documentation.
+- Saved queues, presets, completed passages, and downloads from 1.6.1 remain compatible.
+
 ## 1.6.1 — 2026-11-03
 
 - Fix the Create Audiobook tab not resizing with the window. The Open Book and Queue panes now widen with the window, left-aligned under the header, up to a comfortable maximum; the queue list grows with the window instead of staying 240 points tall; and the text preview is taller. Voice & Text keeps a form width.
