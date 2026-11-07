@@ -131,6 +131,6 @@ extension EPUBBook {
             if text == chapter.text { return chapter }
             return text.isEmpty ? nil : BookChapter(id: chapter.id, title: chapter.title, text: text, includedByDefault: chapter.includedByDefault)
         }
-        return EPUBBook(title: title, author: author, language: language, chapters: prepared, source: source, warnings: warnings, cover: cover)
+        return EPUBBook(title: title, author: author, language: language, chapters: prepared, source: source, warnings: warnings, cover: cover, details: details)
     }
 }

@@ -102,7 +102,7 @@ The companion CLI includes `benchmark-read BOOK.epub` for comparing 20 fresh rea
 ## Download tools
 
 - **Add to Queue** collects several jobs before you run them. Jobs run sequentially, preserving each site's own request delays. A failed story does not prevent later queued stories from downloading.
-- **Preview story** reads metadata without saving an EPUB.
+- **Preview story** reads metadata without saving an EPUB. Each story shows its site category and rating when the site provides them; Literotica gives an average reader rating rather than a content rating.
 - **Find links on a page** returns links to the input box for review. Switch the action back to **Download by Link** before downloading them.
 - **Update Existing EPUBs…** updates FanFicFare books and backs up originals to **FanFicFare Backups** beside each book. Books with no new chapters stay unchanged.
 - **Cancel & Pause Queue** stops the active download and cleans partial work. **Start Queue** resumes remaining jobs. **Retry Selected** retries a failed or cancelled job using the current INI and adult-access choices.
@@ -117,7 +117,7 @@ For local narration, the app uses speech voices exposed by macOS `/usr/bin/say`.
 
 MP3 encoding uses **FFmpeg with libmp3lame**; M4B uses its **AAC** encoder. A standalone FFmpeg encoder is bundled. An alternative compatible encoder can be selected in Settings.
 
-Only unprotected, text-based EPUBs can be narrated. Image-only books need OCR, which is not included. A section follows a document in the EPUB spine; title pages can be unchecked before export. MP3 output has title/author metadata. Combined MP3s have no embedded chapter markers; use **M4B with chapters** or separate chapter files for navigation. M4B preserves JPEG/PNG cover art designated in EPUB 2/3 metadata; unsupported or absent covers are omitted. macOS narration and MP3 encoding run locally; AI speech generation uses the selected provider.
+Only unprotected, text-based EPUBs can be narrated. Image-only books need OCR, which is not included. A section follows a document in the EPUB spine; title pages can be unchecked before export. MP3 and M4B output has title and author metadata. When the EPUB records the story's category and rating, a comment lists the category, rating, and average rating (for example "Category: Loving Wives · Average rating: 4.43") and the category becomes the grouping tag. MP3s also carry labelled Category, Rating, and Average Rating ID3 fields. FanFicFare EPUBs downloaded before version 1.7 fall back to the labelled lines on their title page. Combined MP3s have no embedded chapter markers; use **M4B with chapters** or separate chapter files for navigation. M4B preserves JPEG/PNG cover art designated in EPUB 2/3 metadata; unsupported or absent covers are omitted. macOS narration and MP3 encoding run locally; AI speech generation uses the selected provider.
 
 Exports preserve existing files, prevent idle system sleep, and clean temporary staging on cancellation while retaining completed resume passages. Quitting waits for safe downloader publication or cancellation and audiobook cleanup. Downloading and audiobook conversion run as separate workflow steps.
 

@@ -97,7 +97,39 @@ public enum EPUBReader {
             else { warnings.append("The cover image could not be used for audiobook artwork.") }
         }
         return EPUBBook(title: title.isEmpty ? url.deletingPathExtension().lastPathComponent : title,
-                        author: author, language: language, chapters: chapters, source: url, warnings: warnings, cover: cover)
+                        author: author, language: language, chapters: chapters, source: url, warnings: warnings, cover: cover,
+                        details: storyDetails(package, archive: archive, items: items))
+    }
+
+    /// Package <meta> names the downloader records for the story's category and ratings.
+    public static let detailMeta = (category: "fanfictoaudio:category", rating: "fanfictoaudio:rating",
+                                    averageRating: "fanfictoaudio:average-rating")
+
+    /// The category and ratings recorded in the package. EPUBs that FanFicFare made before
+    /// FanFic to Audio recorded them fall back to the labelled lines on FanFicFare's title page.
+    private static func storyDetails(_ package: XMLDocument, archive: ZIPArchive,
+                                     items: [String: (path: String, type: String, properties: String)]) -> StoryDetails {
+        func meta(_ name: String) -> String {
+            let node = try? package.nodes(forXPath: "//*[local-name()='metadata']/*[local-name()='meta' and @name='\(name)']").first
+            return (node as? XMLElement)?.attr("content") ?? ""
+        }
+        let recorded = StoryDetails(category: meta(detailMeta.category), rating: meta(detailMeta.rating),
+                                    averageRating: meta(detailMeta.averageRating))
+        guard recorded.isEmpty else { return recorded }
+        let madeByFanFicFare = ((try? package.nodes(forXPath: "//*[local-name()='metadata']/*")) ?? [])
+            .contains { ($0.stringValue ?? "").contains("FanFicFare") }
+        guard madeByFanFicFare, let page = items["title_page"], ["application/xhtml+xml", "text/html"].contains(page.type),
+              let data = try? archive.read(page.path), data.count <= 1024 * 1024,
+              let doc = try? document(data, html: true),
+              let body = try? doc.nodes(forXPath: "//*[local-name()='body']").first else { return recorded }
+        var labelled: [String: String] = [:]
+        for line in readableText(body).components(separatedBy: "\n\n") {
+            guard let colon = line.firstIndex(of: ":") else { continue }
+            let label = line[..<colon].lowercased()
+            if labelled[label] == nil { labelled[label] = String(line[line.index(after: colon)...]) }
+        }
+        return StoryDetails(category: labelled["category"] ?? "", rating: labelled["rating"] ?? "",
+                            averageRating: labelled["average rating"] ?? "")
     }
 
     static func resolve(_ href: String, relativeTo document: String) throws -> String {

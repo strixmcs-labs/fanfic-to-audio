@@ -95,6 +95,7 @@ struct DownloadView: View {
                                         Text(job.title).font(.headline).lineLimit(2).textSelection(.enabled)
                                         if !job.author.isEmpty { Text(job.author).font(.callout).foregroundStyle(.secondary) }
                                         if !job.wordCount.isEmpty { Text(job.wordCount).font(.caption).foregroundStyle(.secondary) }
+                                        if let details = job.details, !details.isEmpty { Text(details).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
                                         Text(job.message.isEmpty ? job.request.operation.capitalized : job.message)
                                             .font(.caption).foregroundStyle(job.state == .failed ? AppTheme.text : Color.secondary).lineLimit(4)
                                         if job.state == .running {

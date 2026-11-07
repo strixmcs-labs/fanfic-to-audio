@@ -16,6 +16,7 @@ public enum EPUBMerger {
         var spine: [String] = []
         var navigation: [String] = []
         var authors: [String] = []
+        var details: [StoryDetails] = []
         var language = "en"
         var totalBytes = 0
         for (index, source) in sources.enumerated() {
@@ -23,6 +24,7 @@ public enum EPUBMerger {
             let book = try EPUBReader.read(source)
             if index == 0, !book.language.isEmpty { language = book.language }
             if !book.author.isEmpty && !authors.contains(book.author) { authors.append(book.author) }
+            details.append(book.details)
             let archive = try ZIPArchive(url: source)
             guard archive.entries["META-INF/encryption.xml"] == nil else {
                 throw AudiobookError.invalidEPUB("\(book.title) contains encrypted or obfuscated resources. Use an EPUB without protected resources to combine it.")
@@ -97,11 +99,20 @@ public enum EPUBMerger {
             navigation.append("<li><a href=\"\(escape(divider))\">\(escape(book.title))</a><ol>\(links.joined())</ol></li>")
         }
         let authorXML = authors.map { "<dc:creator>\(escape($0))</dc:creator>" }.joined()
+        // The series keeps each volume's category once, and the first volume's ratings.
+        var categories: [String] = []
+        for category in details.map(\.category) where !category.isEmpty && !categories.contains(category) { categories.append(category) }
+        let series = StoryDetails(category: categories.joined(separator: ", "),
+                                  rating: details.map(\.rating).first { !$0.isEmpty } ?? "",
+                                  averageRating: details.map(\.averageRating).first { !$0.isEmpty } ?? "")
+        let detailXML = [(EPUBReader.detailMeta.category, series.category), (EPUBReader.detailMeta.rating, series.rating),
+                         (EPUBReader.detailMeta.averageRating, series.averageRating)]
+            .filter { !$0.1.isEmpty }.map { "<meta name=\"\($0.0)\" content=\"\(escape($0.1))\"/>" }.joined()
         let modified = ISO8601DateFormatter().string(from: Date())
         let opf = """
         <?xml version="1.0" encoding="UTF-8"?>
         <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="series-id">
-        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="series-id">urn:uuid:\(UUID().uuidString)</dc:identifier><dc:title>\(escape(title))</dc:title>\(authorXML)<dc:language>\(escape(language))</dc:language><meta property="dcterms:modified">\(modified)</meta></metadata>
+        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="series-id">urn:uuid:\(UUID().uuidString)</dc:identifier><dc:title>\(escape(title))</dc:title>\(authorXML)<dc:language>\(escape(language))</dc:language><meta property="dcterms:modified">\(modified)</meta>\(detailXML)</metadata>
         <manifest>\(manifest.joined())</manifest><spine>\(spine.joined())</spine></package>
         """
         resources.append(("META-INF/container.xml", Data("<?xml version=\"1.0\"?><container xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\" version=\"1.0\"><rootfiles><rootfile full-path=\"EPUB/package.opf\" media-type=\"application/oebps-package+xml\"/></rootfiles></container>".utf8)))
@@ -114,7 +125,7 @@ public enum EPUBMerger {
         let verified = try EPUBReader.read(temp)
         try Task.checkCancellation()
         try FileManager.default.moveItem(at: temp, to: destination)
-        return EPUBBook(title: verified.title, author: verified.author, language: verified.language, chapters: verified.chapters, source: destination, warnings: verified.warnings, cover: verified.cover)
+        return EPUBBook(title: verified.title, author: verified.author, language: verified.language, chapters: verified.chapters, source: destination, warnings: verified.warnings, cover: verified.cover, details: verified.details)
     }
     private static func attr(_ node: XMLElement, _ name: String) -> String? { node.attribute(forName: name)?.stringValue }
     private static func xml(_ data: Data) throws -> XMLDocument { try XMLDocument(data: data, options: [.nodeLoadExternalEntitiesNever]) }

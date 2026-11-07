@@ -229,6 +229,10 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(book.title).font(.title2.weight(.semibold)).textSelection(.enabled)
                 if !book.author.isEmpty { Text(book.author).foregroundStyle(.secondary).textSelection(.enabled) }
+                if !book.details.isEmpty {
+                    Text(book.details.labelled.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
+                        .lineLimit(2).textSelection(.enabled)
+                }
                 HStack(spacing: 16) {
                     Label("\(model.selectedWordCount.formatted()) words", systemImage: "text.alignleft")
                     Label("About \(model.estimatedDuration) of audio", systemImage: "clock")

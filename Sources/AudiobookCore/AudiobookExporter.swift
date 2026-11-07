@@ -169,7 +169,7 @@ public enum AudiobookExporter {
             } else {
                 let chapterURL = result.appendingPathComponent(String(format: "%03d", chapterIndex + 1) + " - " + FileNames.safe(chapter.title) + ".mp3")
                 try await concatenate(parts, output: chapterURL, metadata: ["title=\(chapter.title)", "artist=\(book.author)",
-                    "album=\(book.title)", "track=\(chapterIndex + 1)/\(chapters.count)", "genre=Audiobook"] + narrationMetadata(options),
+                    "album=\(book.title)", "track=\(chapterIndex + 1)/\(chapters.count)", "genre=Audiobook"], tags: storyTags(book, options),
                     work: work, ffmpeg: options.ffmpeg, runner: runner)
                 // Checkpoints remain available until the complete output is published.
             }
@@ -185,7 +185,7 @@ public enum AudiobookExporter {
         } else if options.mode == .single {
             let complete = stage.appendingPathComponent("audiobook.mp3")
             try await concatenate(chapterAudio, output: complete, metadata: ["title=\(book.title)", "artist=\(book.author)",
-                "album=\(book.title)", "genre=Audiobook"] + narrationMetadata(options), work: work, ffmpeg: options.ffmpeg, runner: runner)
+                "album=\(book.title)", "genre=Audiobook"], tags: storyTags(book, options), work: work, ffmpeg: options.ffmpeg, runner: runner)
             try runner.checkCancellation()
             try FileManager.default.moveItem(at: complete, to: destination)
         } else {
@@ -234,13 +234,29 @@ public enum AudiobookExporter {
             args += ["-f", "image2", "-pattern_type", "none", "-i", image.path, "-map", "2:v:0", "-c:v", "mjpeg", "-disposition:v:0", "attached_pic"]
         }
         args += ["-map", "0:a:0", "-c:a", "copy", "-map_metadata", "1", "-map_chapters", "1", "-movflags", "+faststart", "-f", "mp4"]
-        for item in narrationMetadata(options) { args += ["-metadata", item] }
+        for item in descriptiveMetadata(book, options) { args += ["-metadata", item] }
         args.append(output.path)
         _ = try await runner.run(options.ffmpeg, arguments: args)
     }
 
-    private static func narrationMetadata(_ options: ExportOptions) -> [String] {
-        options.api.map { ["comment=AI-generated narration using \($0.provider.rawValue)"] } ?? []
+    /// One comment naming the story's category, rating, average rating, and any AI narration,
+    /// e.g. "Category: Loving Wives · Average rating: 4.52 · AI-generated narration using OpenAI".
+    static func storyComment(_ book: EPUBBook, _ options: ExportOptions) -> String {
+        (book.details.labelled + (options.api.map { ["AI-generated narration using \($0.provider.rawValue)"] } ?? [])).joined(separator: " · ")
+    }
+
+    /// M4B tags: the category as grouping (©grp) and the story comment (©cmt).
+    static func descriptiveMetadata(_ book: EPUBBook, _ options: ExportOptions) -> [String] {
+        var items: [String] = []
+        if !book.details.category.isEmpty { items.append("grouping=\(book.details.category)") }
+        let comment = storyComment(book, options)
+        if !comment.isEmpty { items.append("comment=\(comment)") }
+        return items
+    }
+
+    /// MP3 tags, written as standard ID3 frames after FFmpeg, which can only store them as TXXX.
+    static func storyTags(_ book: EPUBBook, _ options: ExportOptions) -> [ID3Tag.Frame] {
+        ID3Tag.storyFrames(book.details, comment: storyComment(book, options))
     }
 
     static func validateSpeech(_ url: URL, voice: String) throws {
@@ -259,7 +275,8 @@ public enum AudiobookExporter {
         throw AudiobookError.conversion("No audible speech was produced by \(voice). Try another voice or check the speech provider.")
     }
 
-    private static func concatenate(_ inputs: [URL], output: URL, metadata: [String], work: URL, ffmpeg: URL, runner: ProcessRunner) async throws {
+    private static func concatenate(_ inputs: [URL], output: URL, metadata: [String], tags: [ID3Tag.Frame] = [],
+                                    work: URL, ffmpeg: URL, runner: ProcessRunner) async throws {
         let list = try joinList(inputs, work: work)
         var arguments = ["-nostdin", "-hide_banner", "-loglevel", "error", "-n", "-f", "concat", "-safe", "0", "-i", list.path,
                          "-map", "0:a:0", "-c:a", "copy", "-map_metadata", "-1", "-id3v2_version", "3"]
@@ -268,6 +285,7 @@ public enum AudiobookExporter {
         _ = try await runner.run(ffmpeg, arguments: arguments)
         let bytes = try output.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
         guard bytes > 0 else { throw AudiobookError.conversion("The MP3 encoder produced an empty file.") }
+        try ID3Tag.write(tags, to: output)
     }
 
     static func speechChunks(_ text: String, limit: Int = 6000, utf8Limit: Int? = nil) -> [String] {
