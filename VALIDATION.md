@@ -1,8 +1,21 @@
 # Validation
 
-Last checked: November 3, 2026. Candidate: **1.6.1**, build **9**.
+Last checked: November 7, 2026. Candidate: **1.7.0**, build **10**.
 
-## Version 1.6.1 checks
+## Version 1.7.0 checks
+
+- **89 native tests passed**: 76 audiobook tests, 5 download-bridge tests, and 8 app-model and credit tests. **52 Python tests passed** on FanFicFare 4.63.0, with two upstream deprecation warnings. GitHub Actions passed on pull request #18.
+- New coverage: the EPUB package records category, rating, and average rating with the mimetype entry kept first and uncompressed, and an update replaces earlier values; the reader prefers recorded values and falls back to FanFicFare's title page only for FanFicFare-made EPUBs; series merges keep each category once; single MP3, chapter MP3, and M4B exports carry the tags; ID3 frames round-trip Unicode and leave the audio bytes unchanged.
+- The offline FanFicFare test story was downloaded with and without a title page (`include_titlepage: false`); both EPUBs reported the category and rating in `epub-audio inspect`. An EPUB with the recorded values removed fell back to the title page.
+- A copy of a real Literotica EPUB in **Loving Wives**, with its text shortened and its metadata and title page unchanged, was exported to MP3. AVFoundation read `COMM` "Category: Loving Wives · Average rating: 4.43", `TIT1` "Loving Wives", and the labelled Category and Average Rating fields. AVFoundation does not report `GRP1` text. Before the fix, FFmpeg had written the comment and grouping as `TXXX` frames only.
+- The About panel's byline and StrixMCS Labs GitHub link were checked on screen.
+- All nested code and the app were signed with Developer ID Application, team `CF67T8RW6F`, hardened runtime, and secure timestamps, from source identical to `main` at the merge of pull request #18. A first signing attempt stopped at codesign because the hardware token was not connected; the retry signed every item. The signed bundle passed deep/strict verification and the packaged helper/local narration smoke check.
+- Apple accepted the app submission `cc6dd0ca-ba4a-4ebe-9657-33fe51bdb0d1` and the DMG submission `eafeac7c-fdfe-4b5e-8e9c-5aa7bacbdccf`; both tickets were stapled and validated. The app extracted from the release ZIP and the DMG both assess as `Notarized Developer ID`, and both checksums match.
+- Live AI providers, a live Literotica download, Music app display, installation on another Mac, and Intel packaging were not verified.
+
+## Version 1.6.1 historical validation
+
+Checked November 3, 2026: version 1.6.1, build 9.
 
 - **83 native tests passed**: 70 audiobook tests, 5 download-bridge tests, and 8 app-model and credit tests. **50 Python tests passed** on FanFicFare 4.63.0, with two upstream deprecation warnings.
 - New coverage: the exporter reports each section and passage with its progress, the queue publishes the converting book's progress and clears it between books, and the restored-queue summary uses the singular for one entry.
